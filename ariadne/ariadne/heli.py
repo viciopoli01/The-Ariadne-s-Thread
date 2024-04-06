@@ -22,12 +22,23 @@ class Heli(Node):
         self.map.radius = []
         self.map.goal = Point()
 
+        # subscribe to the rover_map topic
+        self.create_subscription(AriadneMap, 'map_rover', self.update_map, 10)
+
         # subscribe to image topic
         # self.create_subscription(Image, 'image', self.image_callback, 10)
 
         # for now we can read an image from a file
         # read all the images in root_dir
         self.load_blender_data(root_dir)
+
+    def update_map(self, msg):
+        new_obs = msg.obstacles
+        new_radius = msg.radius
+        for obs, radius in zip(new_obs, new_radius):
+            if not self.check_obs_exists(obs):
+                self.map.obstacles.append(obs)
+                self.map.radius.append(radius)
 
     def load_blender_data(self, root_dir):
         with open(os.path.join(root_dir, 'transforms_train.json'), 'r') as fp:
@@ -56,13 +67,18 @@ class Heli(Node):
             # check if 3D point already in map
             for obs in obs_world:
                 # if the distance to the obstacle is less than a threshold, we consider it the same obstacle
-                if any(np.linalg.norm(np.array(obs) - np.array(o)) < 0.1 for o in self.map.obstacles):
+                if self.check_obs_exists(obs):
                     continue
                 self.map.obstacles.append(obs)
                 self.map.radius.append(rays)
 
             # publish map
             self.publish_map()
+
+    def check_obs_exists(self, obs, threshold=0.1):
+        if any(np.linalg.norm(np.array(obs) - np.array(o)) < threshold for o in self.map.obstacles):
+            return True
+        return False
 
     def project_obstacles(self, obs_cam_plane, K, T):
         """ Obstacles are in the camera plane, we need to project them to the world frame
