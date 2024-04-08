@@ -1,0 +1,5 @@
+<launch>
+    <node name="map_generator" pkg="ariadne" type="map_generator.py" output="screen"/>
+    <node name="heli" pkg="ariadne" type="heli.py" output="screen"/>
+    <node name="rover" pkg="ariadne" type="rover.py" output="screen"/>
+</launch>
