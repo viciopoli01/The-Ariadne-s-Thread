@@ -27,10 +27,10 @@ class MapGenerator():
         rospy.Subscriber("heli_pose", PoseStamped, self.heli_request)
 
         # TODO load these params from a config file
-        self.H, self.W = 800., 800.
-        focal = 1000.0
-        self.K = np.array([[focal, 0, self.H / 2.],
-                      [0, focal, self.W / 2.],
+        self.H, self.W = 480., 720.
+        focal = 300.0
+        self.K = np.array([[focal, 0, self.W / 2.],
+                      [0, focal, self.H / 2.],
                       [0, 0, 1.]])
         
         # Generate map
@@ -38,12 +38,12 @@ class MapGenerator():
 
         self.radius = []
         self.obstacleList = []
-        for i in range(25):  # at least 1 obstacle
+        for i in range(100):  # at least 1 obstacle
             # assuming the obstacles are all on a plane, in homogenous coordinates
-            self.obstacleList.append([np.random.rand() * 150, np.random.rand() * 150, 0., 1.])
-            self.radius.append(np.random.rand() * 2.0 + 1.0)
-        start = [np.random.uniform(-2, 15), np.random.uniform(-2, 15), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
-        goal = [np.random.uniform(-2, 15), np.random.uniform(-2, 15), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
+            self.obstacleList.append([np.random.uniform(-150, 150), np.random.uniform(-150, 150), 0., 1.])
+            self.radius.append(np.random.rand() * 3.0 + 2.0)
+        start = [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
+        goal = [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
 
         # Check they are not in the obstacles
         def check_collision(point):
@@ -60,18 +60,33 @@ class MapGenerator():
         self.goal = check_collision(goal)
 
         self.bridge= CvBridge()
+        rospy.loginfo('Map generated')
 
 
+    def msg2T(self, msg):
+        T = np.eye(4)
+        pose = msg.pose
+        T[0, 3] = pose.position.x
+        T[1, 3] = pose.position.y
+        T[2, 3] = pose.position.z
+        # orientation
+        qx = pose.orientation.x
+        qy = pose.orientation.y
+        qz = pose.orientation.z
+        qw = pose.orientation.w
+        rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
+        T[:3, :3] = rot.as_matrix()
+        return T
 
     def heli_request(self, msg):
         rospy.loginfo('Received heli pose')
-        T_wc = np.eye(4)
+        T_cw = np.eye(4)
 
         pose = msg.pose
         # read pose
-        T_wc[3, 0] = pose.position.x
-        T_wc[3, 1] = pose.position.y
-        T_wc[3, 2] = pose.position.z
+        T_cw[0, 3] = pose.position.x
+        T_cw[1, 3] = pose.position.y
+        T_cw[2, 3] = pose.position.z
         # orientation
         qx = pose.orientation.x
         qy = pose.orientation.y
@@ -79,26 +94,39 @@ class MapGenerator():
         qw = pose.orientation.w
 
         rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
-        T_wc[:3, :3] = rot.as_matrix()
+        T_cw[:3, :3] = rot.as_matrix()
 
-        self.image = self.project_obstacles(T_wc)
+        self.image = self.project_obstacles(T_cw)
         self.publish_image()
 
 
-    def project_obstacles(self, T_wc):
-        pts_cam = self.K @ (T_wc @ np.array(self.obstacleList).T)[:3, :]
+    def project_obstacles(self, T_cw):
+        distances = np.linalg.norm((T_cw @ np.array(self.obstacleList).T)[:3, :], axis=0)
+        pts_cam = self.K @ (T_cw @ np.array(self.obstacleList).T)[:3, :]
+        pts_cam /= pts_cam[2, :]
+        pts_cam = pts_cam[:2, :].astype(int)
         # discard all the points out of the camera plane
-        pts_cam_plane = (pts_cam[0] > 0) & (pts_cam[0] < self.H) & (pts_cam[1] > 0) & (pts_cam[1] < self.W)
-        pts_cam = pts_cam[:, pts_cam_plane]
-        pts_cam = pts_cam[:2, :].T
+        pts_cam_plane = (pts_cam[0] > 0) & (pts_cam[1] < self.H) & (pts_cam[1] > 0) & (pts_cam[0] < self.W)
+        pts_cam = pts_cam[:, pts_cam_plane].T
         radius_visible = np.array(self.radius)[pts_cam_plane]
+        distances = distances[pts_cam_plane]
 
-        # create an image with the obstacles
-        img = np.ones((int(self.H), int(self.W), 3), dtype=np.uint8) * 255
-        for pt in pts_cam:
+        # create an image color: (138, 83, 47) with the obstacles
+        img = np.zeros((int(self.H), int(self.W), 3), np.uint8)
+        img[:] = (47, 138, 83)
+        for pt, r, d in zip(pts_cam, radius_visible, distances):
+            rospy.loginfo(pt)
             # point size according to the radius
-            cv2.circle(img, (int(pt[0]), int(pt[1])), int(radius_visible), (0, 255, 255), -1)
+            cv2.circle(img, (int(pt[0]), int(pt[1])), int(self.K[0,0]*r/d), (111, 173, 136), -1)
         
+        # add noise to the image
+        noise = np.random.normal(0, 10, img.shape)
+        img = img + noise
+        img = np.clip(img, 0, 255).astype(np.uint8)
+
+        # blur the image
+        img = cv2.GaussianBlur(img, (5, 5), 0)
+
         return img
 
     
