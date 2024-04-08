@@ -34,7 +34,7 @@ class Heli():
         self.pose = PoseStamped()
         self.pose.pose.position.x = 0
         self.pose.pose.position.y = 0
-        self.pose.pose.position.z = -10.
+        self.pose.pose.position.z = 10.
         # this is the orientation of the camera, should point downwards
         self.pose.pose.orientation.x = 0.7071068
         self.pose.pose.orientation.y = 0.7071068
@@ -42,7 +42,7 @@ class Heli():
         self.pose.pose.orientation.w = 0
 
         # publish the pose every 10 second
-        rospy.Timer(rospy.Duration(1), self.publish_pose)
+        rospy.Timer(rospy.Duration(10), self.publish_pose)
     
     def publish_pose(self, event):
         rospy.loginfo('Publishing pose')

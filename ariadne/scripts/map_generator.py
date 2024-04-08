@@ -28,7 +28,7 @@ class MapGenerator():
 
         # TODO load these params from a config file
         self.H, self.W = 800., 800.
-        focal = 1111.0
+        focal = 1000.0
         self.K = np.array([[focal, 0, self.H / 2.],
                       [0, focal, self.W / 2.],
                       [0, 0, 1.]])
@@ -38,9 +38,9 @@ class MapGenerator():
 
         self.radius = []
         self.obstacleList = []
-        for i in range(5):  # at least 1 obstacle
+        for i in range(25):  # at least 1 obstacle
             # assuming the obstacles are all on a plane, in homogenous coordinates
-            self.obstacleList.append([np.random.rand() * 15, np.random.rand() * 15, 0., 1.])
+            self.obstacleList.append([np.random.rand() * 150, np.random.rand() * 150, 0., 1.])
             self.radius.append(np.random.rand() * 2.0 + 1.0)
         start = [np.random.uniform(-2, 15), np.random.uniform(-2, 15), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
         goal = [np.random.uniform(-2, 15), np.random.uniform(-2, 15), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
