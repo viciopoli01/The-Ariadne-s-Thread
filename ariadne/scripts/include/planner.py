@@ -18,4 +18,8 @@ class Planner:
             list: This must be a valid list of connected nodes that form
                 a path from start to goal node
         """
-        raise NotImplementedError
+        try:
+            from include.planner_notebook import planner
+            return planner(start, goal, obstacles, radius)
+        except ImportError:
+            raise NotImplementedError

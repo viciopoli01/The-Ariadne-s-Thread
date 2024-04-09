@@ -37,17 +37,25 @@ class Rover():
         
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
-        if config['planner_algo'] == 0:
+
+        if config['planner_algo'] == -1:
+            rospy.loginfo('Using MyCustomPlanner')
+            self.planner = Planner()
+        elif config['planner_algo'] == 0:
             from include.RRT import RRT
+            rospy.loginfo('Using RRT')
             self.planner = RRT()
         elif config['planner_algo'] == 1:
             from include.RRTStar import RRTStar
+            rospy.loginfo('Using RRT*')
             self.planner = RRTStar()
         elif config['planner_algo'] == 2:
             from include.AStar import AStar
+            rospy.loginfo('Using A*')
             self.planner = AStar()
         elif config['planner_algo'] == 3:
             from include.DStar import DStar
+            rospy.loginfo('Using D*')
             self.planner = DStar()
 
         return config
