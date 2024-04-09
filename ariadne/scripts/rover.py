@@ -36,14 +36,18 @@ class Rover():
         self.pose = np.array([0, 0])
         
     def dynamic_callback(self, config, level):
-        rospy.loginfo("""Reconfigure Request: {planner}""".format(**config))
-        if config['planner'] == 0:
+        rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
+        if config['planner_algo'] == 0:
+            from include.RRT import RRT
             self.planner = RRT()
-        elif config['planner'] == 1:
+        elif config['planner_algo'] == 1:
+            from include.RRTStar import RRTStar
             self.planner = RRTStar()
-        elif config['planner'] == 2:
+        elif config['planner_algo'] == 2:
+            from include.AStar import AStar
             self.planner = AStar()
-        elif config['planner'] == 3:
+        elif config['planner_algo'] == 3:
+            from include.DStar import DStar
             self.planner = DStar()
 
         return config

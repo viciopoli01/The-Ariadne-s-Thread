@@ -2,9 +2,9 @@
 
 from include.planner import Planner
 
-class RRT(Planner):
+class RRTStar(Planner):
     def __init__(self, config=None):
-        super(RRT, self).__init__(config)
+        super(RRTStar, self).__init__(config)
 
     def plan(self, start, goal, obstacles: list, radius: list) -> list:
         """ Plan a path from start to goal avoiding obstacles.
