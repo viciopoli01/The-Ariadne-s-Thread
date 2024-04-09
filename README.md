@@ -36,6 +36,13 @@ source install/setup.bash
 ros2 launch ariadne start_ariadne.launch.py
 ```
 
+## Docker usage
+
+```bash
+docker build -t ariadne:amd64 .
+docker run --net=host --rm --privileged --name ARIADNE -it ariadne:amd64
+```
+
 ## Authors
 
 ...
