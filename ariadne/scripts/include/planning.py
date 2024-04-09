@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 class Planner:
 
     def __init__(self, config):

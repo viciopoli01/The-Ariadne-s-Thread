@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import json
 import os
 
@@ -12,7 +13,7 @@ import cv2
 from cv_bridge import CvBridge
 
 from scipy.spatial.transform import Rotation
-
+from include.utils import check_obs_exists, map_updater
 
 class Heli():
 
@@ -86,21 +87,20 @@ class Heli():
         rospy.loginfo('Received image')
         img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         # extract obstacles from the image
-        obstacles = self.extract_obstacles(img)  
-
+        obstacles, radius = self.extract_obstacles(img)  
+        # rospy.loginfo(f"Obstacles:\n{obstacles.shape}, {radius.shape}")
+        self.map, map_updated = map_updater(self.map, obstacles, radius)
+        
+        if map_updated:
+            self.publish_map()
 
     def update_map(self, msg):
         new_obs = msg.obstacles
         new_radius = msg.radius
-        for obs, radius in zip(new_obs, new_radius):
-            if not self.check_obs_exists(obs):
-                self.map.obstacles.append(obs)
-                self.map.radius.append(radius)
-
-    def check_obs_exists(self, obs, threshold=0.1):
-        if any(np.linalg.norm(np.array(obs) - np.array(o)) < threshold for o in self.map.obstacles):
-            return True
-        return False
+        self.map, new_map = map_updater(self.map, new_obs, new_radius)
+        if new_map:
+            self.publish_map()
+    
 
     def project_obstacles(self, obs_cam_plane, K, T):
         """ Obstacles are in the camera plane, we need to project them to the world frame
@@ -109,10 +109,17 @@ class Heli():
             K: camera matrix
             T: transformation matrix from camera to world frame
         """
-        obs_cam_homogenous = np.hstack([obs_cam_plane, np.ones((len(obs_cam_plane), 1))])
+        obs_cam_homogenous = np.hstack([obs_cam_plane, np.ones((len(obs_cam_plane), 1))]).T
         T_inv = np.linalg.inv(T)
-        obs_world_homogenous = T_inv[:3,:3] @ np.linalg.inv(K) @ obs_cam_homogenous + T_inv[:3,3].reshape(-1, 1)
-        obs_world = [(obs_world_homogenous[0], obs_world_homogenous[1])]
+        P_cam = np.linalg.inv(K) @ obs_cam_homogenous
+        # We assume all the points lay on a plane, the plane is at the distance of the camera height
+        P_cam = P_cam * self.pose.pose.position.z # z is like the avg depth
+        P_cam = np.vstack([P_cam, np.ones((1, P_cam.shape[1]))])
+        # rospy.loginfo(f"P_cam:\n{P_cam}")
+        obs_world_homogenous = T_inv @ P_cam
+        # rospy.loginfo(f"obs_world_homogenous:\n{obs_world_homogenous}")
+        obs_world = (obs_world_homogenous[:3, :]/obs_world_homogenous[3, :]).T
+        # rospy.loginfo(f"obs_world:\n{obs_world}")
         return obs_world
 
     def extract_obstacles(self, image):
@@ -126,17 +133,17 @@ class Heli():
 
         # fit a circle to each obstacle
         # Convert the image to grayscale
-        cv2.imshow('Original Image', image)
+        # cv2.imshow('Original Image', image)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Apply Gaussian blur to reduce noise
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        cv2.imshow('blurred', blurred)
+        # cv2.imshow('blurred', blurred)
         # Use adaptive thresholding to segment the rocks
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 13, 5)
 
-        cv2.imshow('thr', thresh)
+        # cv2.imshow('thr', thresh)
 
         # Find contours of the circles
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -160,19 +167,22 @@ class Heli():
                 
 
         # Display the result
-        cv2.imshow('Segmented Rocks', result)
-        cv2.waitKey(0)
+        # cv2.imshow('Segmented Rocks', result)
+        # cv2.waitKey(0)
         
         # add obstacles to the map
         obs_cam_plane = [obs[0] for obs in obstacles]
         obs_world = self.project_obstacles(obs_cam_plane, self.K, self.msg2T(self.pose))
 
         # scale the ray according to the pose of the camera
-        radius = [300*obs[1]/self.pose.pose.position.z for obs in obstacles]
+        radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z for obs in obstacles])
+
+        # stack obstacles and radius
         return obs_world, radius
 
     def publish_map(self):
-        self.map.header.stamp = self.get_clock().now().to_msg()
+        rospy.loginfo('Publishing map')
+        self.map.header.stamp = rospy.Time.now()
         self.map_publisher.publish(self.map)
 
 

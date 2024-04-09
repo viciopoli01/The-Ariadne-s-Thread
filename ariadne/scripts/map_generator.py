@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import json
 import os
 
@@ -38,7 +39,7 @@ class MapGenerator():
 
         self.radius = []
         self.obstacleList = []
-        for i in range(100):  # at least 1 obstacle
+        for i in range(150):  # at least 1 obstacle
             # assuming the obstacles are all on a plane, in homogenous coordinates
             self.obstacleList.append([np.random.uniform(-150, 150), np.random.uniform(-150, 150), 0., 1.])
             self.radius.append(np.random.rand() * 3.0 + 2.0)
@@ -79,7 +80,7 @@ class MapGenerator():
         return T
 
     def heli_request(self, msg):
-        rospy.loginfo('Received heli pose')
+        # rospy.loginfo('Received heli pose')
         T_cw = np.eye(4)
 
         pose = msg.pose
@@ -110,12 +111,13 @@ class MapGenerator():
         pts_cam = pts_cam[:, pts_cam_plane].T
         radius_visible = np.array(self.radius)[pts_cam_plane]
         distances = distances[pts_cam_plane]
+        # rospy.loginfo(f'Obstacles selected: {np.array(self.obstacleList)[pts_cam_plane]}')
 
         # create an image color: (138, 83, 47) with the obstacles
         img = np.zeros((int(self.H), int(self.W), 3), np.uint8)
         img[:] = (47, 138, 83)
         for pt, r, d in zip(pts_cam, radius_visible, distances):
-            rospy.loginfo(pt)
+            # rospy.loginfo(f"pt:\n{pt}")
             # point size according to the radius
             cv2.circle(img, (int(pt[0]), int(pt[1])), int(self.K[0,0]*r/d), (111, 173, 136), -1)
         

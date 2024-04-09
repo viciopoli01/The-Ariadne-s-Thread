@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from planning import Planner
 
 class RRT(Planner):

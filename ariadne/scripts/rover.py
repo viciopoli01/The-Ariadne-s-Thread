@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from ariadne.msg import AriadneMap
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
@@ -19,6 +21,7 @@ class Rover():
         self.goal = []
 
     def map_callback(self, msg):
+        rospy.loginfo('Received map')
         self.obstacles = msg.obstacles
         self.radius = msg.radius
         self.goal = msg.goal
