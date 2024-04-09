@@ -63,6 +63,10 @@
   <build_depend>message_generation</build_depend>
   <exec_depend>message_runtime</exec_depend>
 
+  <!-- include dynami_reconfigure deps -->
+  <build_depend>dynamic_reconfigure</build_depend>
+  <exec_depend>dynamic_reconfigure</exec_depend>
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

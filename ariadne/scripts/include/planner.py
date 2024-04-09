@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-from planning import Planner
+class Planner:
 
-class RRT(Planner):
-    def __init__(self, config):
-        super(RRT, self).__init__(config)
+    def __init__(self, config=None):
+        self.config = config
 
     def plan(self, start, goal, obstacles: list, radius: list) -> list:
         """ Plan a path from start to goal avoiding obstacles.
@@ -19,4 +18,4 @@ class RRT(Planner):
             list: This must be a valid list of connected nodes that form
                 a path from start to goal node
         """
-        pass
+        raise NotImplementedError

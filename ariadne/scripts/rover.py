@@ -5,6 +5,16 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 import rospy
 
+from include.utils import map_updater, obs2array
+from include.planner import Planner
+
+import numpy as np
+
+from dynamic_reconfigure.server import Server
+from ariadne.cfg import AriadneConfig
+
+
+
 class Rover():
 
     def __init__(self):
@@ -16,22 +26,40 @@ class Rover():
 
         # subscribe to the map topic
         rospy.Subscriber("map", AriadneMap, self.map_callback)
-        self.obstacles = []
-        self.radius = []
-        self.goal = []
+        self.map = AriadneMap()
+        self.map.obstacles = []
+        self.map.radius = []
+
+        self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
+        self.planner = Planner()
+
+        self.pose = np.array([0, 0])
+        
+    def dynamic_callback(self, config, level):
+        rospy.loginfo("""Reconfigure Request: {planner}""".format(**config))
+        if config['planner'] == 0:
+            self.planner = RRT()
+        elif config['planner'] == 1:
+            self.planner = RRTStar()
+        elif config['planner'] == 2:
+            self.planner = AStar()
+        elif config['planner'] == 3:
+            self.planner = DStar()
+
+        return config
+
 
     def map_callback(self, msg):
         rospy.loginfo('Received map')
         self.obstacles = msg.obstacles
         self.radius = msg.radius
+        # update the map
+        self.map, map_updater(self.map, msg.obstacles, msg.radius)
         self.goal = msg.goal
 
-        path = self.plan()
+        path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles], self.map.radius)
         if path:
             self.publish_path(path)
-
-    def plan(self):
-        pass
 
     def publish_path(self, path):
         """Publish the path to the rover_path topic.
