@@ -4,7 +4,7 @@ FROM osrf/ros:noetic-desktop-full-focal
 # Install some dependencies
 RUN apt-get update
 RUN apt-get install -y python3-pip python3-dev
-RUN pip3 install notebook catkin-tools
+RUN pip3 install notebook catkin-tools scipy numpy
 
 # copy the current directory contents into the container at /app
 RUN mkdir -p /app/src/The-Ariadne-s-Thread

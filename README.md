@@ -40,7 +40,8 @@ ros2 launch ariadne start_ariadne.launch.py
 
 ```bash
 docker build -t ariadne:amd64 .
-docker run --net=host --rm --privileged --name ARIADNE -it ariadne:amd64
+xhost +local:root 
+docker run --net=host --rm --privileged -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix --name ARIADNE -it ariadne:amd64
 ```
 
 ## Authors
