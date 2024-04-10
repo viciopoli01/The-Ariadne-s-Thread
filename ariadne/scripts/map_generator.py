@@ -9,12 +9,12 @@ from scipy.spatial.transform import Rotation
 from ariadne.msg import AriadneMap
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 import rospy
 import cv2
 import math
 from cv_bridge import CvBridge
-
+from gazebo_msgs.srv import SpawnModel
 
 class MapGenerator():
 
@@ -61,6 +61,16 @@ class MapGenerator():
         self.goal = check_collision(goal)
 
         self.bridge= CvBridge()
+        # spawn obstacles
+        count = 0
+        for (ox, oy, _, _), size in zip(self.obstacleList, self.radius):
+            pose = Pose()
+            pose.position.x = ox
+            pose.position.y = oy
+            pose.position.z = 0
+            # self.spawn_obstacle(pose, size, count)
+            count += 1
+
         rospy.loginfo('Map generated')
 
 
@@ -139,6 +149,44 @@ class MapGenerator():
 
         self.map_publisher.publish(img_msg)
 
+
+    # For visualization
+    def spawn_obstacle(self, pose, radius, id):
+        rospy.wait_for_service('/gazebo/spawn_sdf_model')
+        try:
+            spawn_model = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+            
+            # Define cylinder SDF with provided pose and radius
+            obstacle_sdf = f"""
+            <?xml version="1.0"?>
+            <sdf version="1.5">
+            <model name="cylinder_obstacle_{id}">
+                <pose>{pose.position.x} {pose.position.y} {pose.position.z} {pose.orientation.x} {pose.orientation.y} {pose.orientation.z}</pose>
+                <link name="link">
+                <collision name="collision">
+                    <geometry>
+                    <cylinder>
+                        <radius>{radius}</radius>
+                        <length>{2.}</length>
+                    </cylinder>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                    <cylinder>
+                        <radius>{radius}</radius>
+                        <length>{2.}</length>
+                    </cylinder>
+                    </geometry>
+                </visual>
+                </link>
+            </model>
+            </sdf>
+            """
+            # Spawn the obstacle
+            resp = spawn_model(f"cylinder_obstacle_{id}", obstacle_sdf, "", pose, "world")
+        except rospy.ServiceException as e:
+            rospy.logerr("Spawn service call failed: %s", e)
 
 
 
