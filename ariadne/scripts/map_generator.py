@@ -68,7 +68,7 @@ class MapGenerator():
             pose.position.x = ox
             pose.position.y = oy
             pose.position.z = 0
-            # self.spawn_obstacle(pose, size, count)
+            self.spawn_obstacle(pose, size, count)
             count += 1
 
         rospy.loginfo('Map generated')
