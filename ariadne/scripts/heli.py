@@ -26,7 +26,7 @@ class Heli():
         self.map.header.frame_id = 'map'
         self.map.obstacles = []
         self.map.radius = []
-        self.map.goal = Point()
+        self.map.goal = Point(50,50,0)#issue goal location?
 
         self.bridge= CvBridge()
 
@@ -161,6 +161,7 @@ class Heli():
             center = (int(x), int(y))
             radius = int(radius)
             obstacles.append((center, radius))
+            # print("rad1:",radius)
 
             # Draw the circle
             cv2.circle(result, center, radius, (0, 0, 255), 2)
@@ -175,8 +176,8 @@ class Heli():
         obs_world = self.project_obstacles(obs_cam_plane, self.K, self.msg2T(self.pose))
 
         # scale the ray according to the pose of the camera
-        radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z for obs in obstacles])
-
+        radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z/100 for obs in obstacles]) #issue conversion error?
+        # print("rad2:",radius)
         # stack obstacles and radius
         return obs_world, radius
 

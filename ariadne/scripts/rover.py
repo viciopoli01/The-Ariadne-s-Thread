@@ -30,8 +30,9 @@ class Rover():
         self.map.obstacles = []
         self.map.radius = []
 
-        self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
         self.planner = Planner()
+        self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
+        # self.planner = Planner()
 
         self.pose = np.array([0, 0])
         
@@ -43,8 +44,10 @@ class Rover():
             self.planner = Planner()
         elif config['planner_algo'] == 0:
             from include.RRT import RRT
+            from include.AStar import AStar
             rospy.loginfo('Using RRT')
-            self.planner = RRT()
+            rospy.loginfo('Using force Astar') #issue unable to call a star using terminal
+            self.planner = AStar()
         elif config['planner_algo'] == 1:
             from include.RRTStar import RRTStar
             rospy.loginfo('Using RRT*')
@@ -66,10 +69,11 @@ class Rover():
         self.obstacles = msg.obstacles
         self.radius = msg.radius
         # update the map
-        self.map, map_updater(self.map, msg.obstacles, msg.radius)
+        self.map,_tf= map_updater(self.map, msg.obstacles, msg.radius)
         self.goal = msg.goal
 
         path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles], self.map.radius)
+        print(path.shape)
         if path:
             self.publish_path(path)
 

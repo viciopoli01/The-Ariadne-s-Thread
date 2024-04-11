@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from include.planner import Planner
+from planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -37,7 +37,7 @@ class AStar(Planner):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
         
-    def plan(self, start, goal, mapbound, obstacles: list, radius: list,show_animation=True ) -> list:
+    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-100,-100,100,100] ) -> list:
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -52,7 +52,8 @@ class AStar(Planner):
         """
         
         obstacles=np.array(obstacles)
-        print(radius)
+        print("obs:",obstacles)
+        print("rad:",radius)
         self.x_center=obstacles[:,0]
         self.y_center=obstacles[:,1]
         self.raius=radius
@@ -85,6 +86,9 @@ class AStar(Planner):
         
 
         sx,sy=start
+        # print("goal:",goal)
+        # gx=goal.x
+        # gy=goal.y
         gx,gy=goal
 
         if show_animation:  # pragma: no cover
@@ -160,9 +164,17 @@ class AStar(Planner):
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
 
-        
-
-        return rx, ry
+        if show_animation:  # pragma: no cover
+            print("showwww")
+            plt.plot(rx, ry, "-r")
+            plt.pause(0.001)
+            # plt.clf()
+            # plt.pause(1)
+            print(rx)
+            print(ry)
+            # plt.show()
+        path=np.array([rx,ry,np.zeros(len(rx))]).T
+        return path
     
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
@@ -227,15 +239,15 @@ class AStar(Planner):
         self.min_y = round(min(oy))
         self.max_x = round(max(ox))
         self.max_y = round(max(oy))
-        print("min_x:", self.min_x)
-        print("min_y:", self.min_y)
-        print("max_x:", self.max_x)
-        print("max_y:", self.max_y)
+        # print("min_x:", self.min_x)
+        # print("min_y:", self.min_y)
+        # print("max_x:", self.max_x)
+        # print("max_y:", self.max_y)
 
         self.x_width = round((self.max_x - self.min_x) / self.resolution)
         self.y_width = round((self.max_y - self.min_y) / self.resolution)
-        print("x_width:", self.x_width)
-        print("y_width:", self.y_width)
+        # print("x_width:", self.x_width)
+        # print("y_width:", self.y_width)
 
         # obstacle map generation
         self.obstacle_map = [[False for _ in range(self.y_width)]
@@ -307,7 +319,9 @@ def main():
     radi=[2,3,2,10]
     mapbound=[-10,-20,100,60] # min_x min_y max_x max_y
     planner=AStar()
-    rx,ry=planner.plan(np.array([10, 10]), np.array([50, 50]),mapbound, obs, radi,show_animation)
+    path=planner.plan(np.array([10, 10]), np.array([50, 50]), obs, radi,show_animation,mapbound)
+    rx=path[:,0]
+    ry=path[:,1]
 
     # if show_animation:  # pragma: no cover
     #     plt.plot(ox, oy, ".k")
@@ -320,7 +334,7 @@ def main():
 
     if show_animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")
-        plt.pause(0.001)
+        plt.pause(1)
         print(rx)
         print(ry)
         plt.show()
