@@ -167,8 +167,8 @@ class Heli():
                 
 
         # Display the result
-        # cv2.imshow('Segmented Rocks', result)
-        # cv2.waitKey(0)
+        cv2.imshow('Segmented Rocks', result)
+        cv2.waitKey(10)
         
         # add obstacles to the map
         obs_cam_plane = [obs[0] for obs in obstacles]
