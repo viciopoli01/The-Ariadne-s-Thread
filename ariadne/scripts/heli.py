@@ -178,6 +178,7 @@ class Heli():
         # scale the ray according to the pose of the camera
         radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z/100 for obs in obstacles]) #issue conversion error?
         # print("rad2:",radius)
+        print(obs_world)
         # stack obstacles and radius
         return obs_world, radius
 

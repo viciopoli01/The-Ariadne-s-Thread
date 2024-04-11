@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from planner import Planner
+from include.planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -89,7 +89,13 @@ class AStar(Planner):
         # print("goal:",goal)
         # gx=goal.x
         # gy=goal.y
-        gx,gy=goal
+        if isinstance(goal,list):
+
+            gx,gy=goal  
+        else:
+            gx=goal.x
+            gy=goal.y
+
 
         if show_animation:  # pragma: no cover
             plt.plot(ox, oy, ".k")
