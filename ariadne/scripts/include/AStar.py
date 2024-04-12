@@ -37,7 +37,7 @@ class AStar(Planner):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
         
-    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-100,-100,100,100] ) -> list:
+    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-50,-30,50,30] ) -> list:
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -82,6 +82,7 @@ class AStar(Planner):
             ox.append(i[0])
             oy.append(i[1])
         self.calc_obstacle_map(ox, oy)
+        print("number of obs!!!!!!!!!!!:",obstacles.shape)
 
         
 
@@ -89,7 +90,7 @@ class AStar(Planner):
         # print("goal:",goal)
         # gx=goal.x
         # gy=goal.y
-        if isinstance(goal,list):
+        if isinstance(goal,np.ndarray):
 
             gx,gy=goal  
         else:
@@ -98,6 +99,8 @@ class AStar(Planner):
 
 
         if show_animation:  # pragma: no cover
+            plt.clf()
+            # plt.gca().invert_yaxis()
             plt.plot(ox, oy, ".k")
             plt.plot(sx, sy, "og")
             plt.plot(gx, gy, "xb")
@@ -343,6 +346,7 @@ def main():
         plt.pause(1)
         print(rx)
         print(ry)
+        
         plt.show()
 
 if __name__ == '__main__':

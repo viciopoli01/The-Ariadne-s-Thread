@@ -39,7 +39,7 @@ class MapGenerator():
 
         self.radius = []
         self.obstacleList = []
-        for i in range(150):  # at least 1 obstacle
+        for i in range(250):  # at least 1 obstacle
             # assuming the obstacles are all on a plane, in homogenous coordinates
             self.obstacleList.append([np.random.uniform(-150, 150), np.random.uniform(-150, 150), 0., 1.])
             self.radius.append(np.random.rand() * 3.0 + 2.0)
@@ -96,6 +96,10 @@ class MapGenerator():
 
         rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
         T_cw[:3, :3] = rot.as_matrix()
+
+        T_cw[:3, :3] = np.linalg.inv(rot.as_matrix())
+      
+        T_cw[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T_cw[:3, 3])
 
         self.image = self.project_obstacles(T_cw)
         self.publish_image()
