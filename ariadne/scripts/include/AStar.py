@@ -183,6 +183,7 @@ class AStar(Planner):
             print(ry)
             # plt.show()
         path=np.array([rx,ry,np.zeros(len(rx))]).T
+        
         return path
     
     def calc_final_path(self, goal_node, closed_set):
