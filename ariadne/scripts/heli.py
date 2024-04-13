@@ -26,7 +26,7 @@ class Heli():
         self.map.header.frame_id = 'map'
         self.map.obstacles = []
         self.map.radius = []
-        self.map.goal = Point(20,20,0)#issue goal location?
+        self.map.goal = Point(-20,10,0)#issue goal location?
 
         self.bridge= CvBridge()
 
@@ -42,6 +42,9 @@ class Heli():
         rot = Rotation.from_matrix([[1, 0, 0], 
                                     [0, -1, 0], 
                                     [0, 0, -1]])
+        # rot = Rotation.from_matrix([[0, 1, 0], 
+        #                             [1, 0, 0], 
+        #                             [0, 0, -1]])
         quat = rot.as_quat()
         self.pose.pose.orientation.x = quat[0]
         self.pose.pose.orientation.y = quat[1]
@@ -83,7 +86,8 @@ class Heli():
         rospy.loginfo('Publishing pose')
         self.pose_publisher.publish(self.pose)
         # move along a line in the x direction
-        self.pose.pose.position.x -= 10.0
+        self.pose.pose.position.y -= 5.0
+        # self.map.goal.x-=15
 
 
     def image_callback(self, msg):

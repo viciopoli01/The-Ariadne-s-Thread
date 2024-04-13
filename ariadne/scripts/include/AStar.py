@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from include.planner import Planner
+from planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ show_animation = True
 class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
-        self.resolution = 2.0
+        self.resolution = 4.0
         self.rr = 1.0
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
@@ -86,13 +86,20 @@ class AStar(Planner):
 
         
 
-        sx,sy=start
+        # sx,sy=start
+
+        if isinstance(start,np.ndarray):
+
+            sx,sy,_theta=start
+        else:
+            sx=start.x
+            sy=start.y
         # print("goal:",goal)
         # gx=goal.x
         # gy=goal.y
         if isinstance(goal,np.ndarray):
 
-            gx,gy=goal  
+            gx,gy,_theta=goal  
         else:
             gx=goal.x
             gy=goal.y
@@ -173,18 +180,22 @@ class AStar(Planner):
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
 
+        
+        reversed_path=np.array([rx,ry,np.zeros(len(rx))]).T
+        # print(reversed_path)
+        path=reversed_path[::-1]
+        extended_path= self.add_orientation_to_path(path)
         if show_animation:  # pragma: no cover
             print("showwww")
             plt.plot(rx, ry, "-r")
             plt.pause(0.001)
             # plt.clf()
             # plt.pause(1)
-            print(rx)
-            print(ry)
+            # print(rx)
+            # print(ry)
             # plt.show()
-        path=np.array([rx,ry,np.zeros(len(rx))]).T
-        
-        return path
+            self.plot_path_with_orientations(extended_path)
+        return extended_path
     
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
@@ -198,6 +209,47 @@ class AStar(Planner):
             parent_index = n.parent_index
 
         return rx, ry
+    def plot_path_with_orientations(self, path_with_orientation):
+        fig, ax = plt.subplots()
+        for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
+            angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
+            # print(angle)
+            ax.quiver(x, y, np.cos(angle), np.sin(angle), color='red' if i == 0 else 'green', scale=20)
+            ax.scatter(x, y, color='blue')  # Point
+
+        ax.set_aspect('equal', adjustable='box')
+        plt.grid(True)
+        plt.show()
+    def add_orientation_to_path(self, path):
+    # Function to calculate quaternion from an angle theta
+        def angle_to_quaternion(theta):
+            return np.array([0, 0, np.sin(theta / 2), np.cos(theta / 2)])
+        
+        # Initialize the path with orientation
+        path_with_orientation = []
+        
+        # Iterate over the path to calculate the orientation at each step
+        for i in range(len(path) - 1):
+            x1, y1, _ = path[i]
+            x2, y2, _ = path[i + 1]
+            
+            # Calculate the angle theta between successive points
+            theta = np.arctan2(y2 - y1, x2 - x1)
+            print(theta)
+            
+            # Compute quaternion
+            quaternion = angle_to_quaternion(theta)
+            
+            # Append position and orientation to the new path
+            path_with_orientation.append((x1, y1, 0) + tuple(quaternion))
+            
+        
+        # Add the last point with the same orientation as the second last point
+        if path.any():
+            
+            path_with_orientation.append(tuple(path[-1]) + tuple(path_with_orientation[-1][3:]))
+        
+        return path_with_orientation
     
     @staticmethod
     def calc_heuristic(n1, n2):
@@ -329,7 +381,7 @@ def main():
     radi=[2,3,2,10]
     mapbound=[-10,-20,100,60] # min_x min_y max_x max_y
     planner=AStar()
-    path=planner.plan(np.array([10, 10]), np.array([50, 50]), obs, radi,show_animation,mapbound)
+    path=planner.plan(np.array([10, 10,0]), np.array([50, 50,0]), obs, radi,show_animation,mapbound)
     rx=path[:,0]
     ry=path[:,1]
 

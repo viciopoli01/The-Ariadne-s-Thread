@@ -22,7 +22,7 @@ def map_updater(_map, new_obs, new_radius):
 def obs2array(_obs):
         return np.array([_obs.x, _obs.y, _obs.z])
 
-def check_obs_exists(_map, obs: np.ndarray, threshold=1.5):
+def check_obs_exists(_map, obs: np.ndarray, threshold=0.1):
     if any(np.linalg.norm(obs - obs2array(o)) < threshold for o in _map.obstacles):
         return True
     return False

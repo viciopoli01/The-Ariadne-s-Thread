@@ -34,7 +34,7 @@ class Rover():
         self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
         # self.planner = Planner()
 
-        self.pose = np.array([0, 0])
+        self.pose = np.array([0, 0,0])
         
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
@@ -73,7 +73,7 @@ class Rover():
         self.goal = msg.goal
 
         path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles], self.map.radius)
-        print(path.shape)
+       
         if path:
             self.publish_path(path)
 
