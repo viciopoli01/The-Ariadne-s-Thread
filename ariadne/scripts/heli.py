@@ -26,7 +26,7 @@ class Heli():
         self.map.header.frame_id = 'map'
         self.map.obstacles = []
         self.map.radius = []
-        self.map.goal = Point(-20,10,0)#issue goal location?
+        self.map.goal = Point(-30,10,0)#issue goal location?
 
         self.bridge= CvBridge()
 
@@ -54,7 +54,7 @@ class Heli():
         rospy.loginfo('Heli node ok')
         # publish the pose every 10 second
         self.pose_publisher.publish(self.pose)
-        rospy.Timer(rospy.Duration(1), self.publish_pose)
+        rospy.Timer(rospy.Duration(2), self.publish_pose)
 
         # TODO load these params from a config file
         self.H, self.W = 480., 720.
@@ -86,7 +86,7 @@ class Heli():
         rospy.loginfo('Publishing pose')
         self.pose_publisher.publish(self.pose)
         # move along a line in the x direction
-        self.pose.pose.position.y -= 5.0
+        self.pose.pose.position.x -= 10.0
         # self.map.goal.x-=15
 
 
