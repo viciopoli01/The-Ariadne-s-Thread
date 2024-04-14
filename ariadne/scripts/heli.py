@@ -27,8 +27,8 @@ class Heli():
         self.map.header.frame_id = 'map'
         self.map.obstacles = []
         self.map.radius = []
-        self.map.goal = Point(-100,50,0)#issue goal location?
-
+        self.map.goal = Point(25,-150,0)#issue goal location?
+        # self.map.temp_goal=np.array([0,0])
         self.bridge= CvBridge()
 
         # subscribe to the rover_map topic
@@ -37,7 +37,7 @@ class Heli():
 
         
 
-        rospy.Subscriber("rover_path", Path, self.publish_pose2)
+        rospy.Subscriber("rover_path", Path, self.update_pose)
 
         self.pose = PoseStamped()
         self.pose.pose.position.x = 0
@@ -89,7 +89,7 @@ class Heli():
         T[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T[:3, 3])
         return T
     
-    def publish_pose2(self, path):
+    def update_pose(self, path):
         rospy.loginfo('Publishing pose due to new path')
         print(path.poses[-1].pose.position.x)
         self.pose.pose.position.x=path.poses[-1].pose.position.x

@@ -26,6 +26,8 @@ class Rover():
 
         # subscribe to the map topic
         rospy.Subscriber("map", AriadneMap, self.map_callback)
+
+        rospy.Subscriber("heli_pose", PoseStamped, self.helipose_update)
         self.map = AriadneMap()
         self.map.obstacles = []
         self.map.radius = []
@@ -33,8 +35,15 @@ class Rover():
         self.planner = Planner()
         self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
         # self.planner = Planner()
+        self.pose = np.array([0,0])
+        self.prev_pose=np.array([0,0])
 
-        self.pose = np.array([0,0,0])
+        
+    def helipose_update(self,msg):
+        heli_pose = msg.pose
+        # read pose
+        # self.prev_pose=self.pose 
+        self.pose = np.array([heli_pose.position.x,heli_pose.position.y ])
         
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
@@ -70,26 +79,30 @@ class Rover():
         self.radius = msg.radius
         # update the map
         self.map,_tf= map_updater(self.map, msg.obstacles, msg.radius)
-        self.goal = msg.goal
-        current=self.pose[0:2].astype(int)
-        final=[msg.goal.x,msg.goal.y]
-        frame_width=55
-        frame_height=25
-        
+        if np.linalg.norm(self.prev_pose-self.pose)<1 or np.linalg.norm(self.prev_pose-self.pose)==0: # issue with producing duplicated obs if update too fast
+            self.goal = msg.goal
+            current=self.pose[0:2].astype(int)
+            final=[msg.goal.x,msg.goal.y]
+            frame_width=75
+            frame_height=35
+            
 
-        obstacles=np.array([obs2array(o) for o in self.map.obstacles])
-        x_center=obstacles[:,0]
-        y_center=obstacles[:,1]     
-        round_obs=np.array([x_center,y_center,self.map.radius]).T
-        self.temp_goal=self.find_temporary_goal(current, final, frame_width, frame_height, round_obs)
-        print("temp goal:", self.temp_goal)
-        
+            obstacles=np.array([obs2array(o) for o in self.map.obstacles])
+            x_center=obstacles[:,0]
+            y_center=obstacles[:,1]     
+            round_obs=np.array([x_center,y_center,self.map.radius]).T
+            self.temp_goal=self.find_temporary_goal(current, final, frame_width, frame_height, round_obs)
+            print("temp goal:", self.temp_goal)
+            
 
-        path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.map.obstacles], 
-                                 self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
-        self.pose=path[-1,:3]
-        if path.any():
-            self.publish_path(path)
+            path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.map.obstacles], 
+                                    self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
+            
+
+            self.prev_pose=path[-1,:2]
+            if path.any():
+                self.publish_path(path)
+
 
     def in_bounds(self,x, y, x_min, x_max, y_min, y_max):
         return x_min <= x <= x_max and y_min <= y <= y_max
@@ -120,6 +133,9 @@ class Rover():
 
         # Check for intersections with frame bounds and select the furthest point within frame
         max_distance = min(frame_width, frame_height) / 2  # conservative maximum view
+
+        if norm <= max_distance:
+            max_distance=norm-2
         temp_goal = np.array(current) + direction_unit * max_distance
 
         # Adjust temporary goal to stay within bounds
@@ -134,10 +150,12 @@ class Rover():
 
         # Avoid obstacles
         for ox, oy, radius in obstacles:
-            if np.linalg.norm(temp_goal - np.array([ox, oy])) <= radius*1.5:
+            if np.linalg.norm(temp_goal - np.array([ox, oy])) <= radius+2:
                 # Move back slightly from the obstacle
                 away_vector = temp_goal - np.array([ox, oy])
-                temp_goal = np.array([ox, oy]) + (away_vector / np.linalg.norm(away_vector) * (radius + 1.5))
+                temp_goal = np.array([ox, oy]) + (away_vector / np.linalg.norm(away_vector) * (radius + 2))
+        
+        
 
         return temp_goal                         
 

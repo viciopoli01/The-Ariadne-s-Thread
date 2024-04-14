@@ -11,7 +11,7 @@ class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
         self.resolution = 2.0
-        self.rr = 1.0
+        self.rr = 1.3
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
         self.obstacle_map = None
@@ -90,7 +90,7 @@ class AStar(Planner):
 
         if isinstance(start,np.ndarray):
 
-            sx,sy,_theta=start
+            sx,sy=start
         else:
             sx=start.x
             sy=start.y
@@ -109,7 +109,7 @@ class AStar(Planner):
             plt.clf()
             # plt.gca().invert_yaxis()
             
-            plt.scatter(ox, oy)
+            plt.scatter(ox, oy,s=2)
             plt.plot(sx, sy, "og")
             plt.plot(gx, gy, "xb")
             plt.grid(True)
