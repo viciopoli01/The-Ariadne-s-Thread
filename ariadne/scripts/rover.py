@@ -34,7 +34,7 @@ class Rover():
         self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
         # self.planner = Planner()
 
-        self.pose = np.array([0, 0,0])
+        self.pose = np.array([0,0,0])
         
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
@@ -71,11 +71,75 @@ class Rover():
         # update the map
         self.map,_tf= map_updater(self.map, msg.obstacles, msg.radius)
         self.goal = msg.goal
+        current=self.pose[0:2].astype(int)
+        final=[msg.goal.x,msg.goal.y]
+        frame_width=55
+        frame_height=25
+        
 
-        path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles], self.map.radius)
-       
-        if path:
+        obstacles=np.array([obs2array(o) for o in self.map.obstacles])
+        x_center=obstacles[:,0]
+        y_center=obstacles[:,1]     
+        round_obs=np.array([x_center,y_center,self.map.radius]).T
+        self.temp_goal=self.find_temporary_goal(current, final, frame_width, frame_height, round_obs)
+        print("temp goal:", self.temp_goal)
+        
+
+        path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.map.obstacles], 
+                                 self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
+        self.pose=path[-1,:3]
+        if path.any():
             self.publish_path(path)
+
+    def in_bounds(self,x, y, x_min, x_max, y_min, y_max):
+        return x_min <= x <= x_max and y_min <= y <= y_max
+    def distance_to_line(self,px, py, ax, ay, bx, by):
+        # Line AB represented as a1x + b1y = c1
+        a1 = by - ay
+        b1 = ax - bx
+        c1 = a1 * ax + b1 * ay
+        # Perpendicular distance from point P to the line AB
+        return abs(a1 * px + b1 * py - c1) / np.sqrt(a1**2 + b1**2)
+    def find_temporary_goal(self,current, final, frame_width, frame_height, obstacles):
+        cx, cy = current
+        fx, fy = final
+        obstacles = np.array(obstacles)  # [(ox, oy, radius), ...]
+        
+        # Define the view frame relative to the current position
+        x_min = cx - frame_width / 2
+        x_max = cx + frame_width / 2
+        y_min = cy - frame_height / 2
+        y_max = cy + frame_height / 2
+
+        # Compute the direction vector towards the final goal
+        direction = np.array([fx - cx, fy - cy])
+        norm = np.linalg.norm(direction)
+        if norm <= 2:
+            return None  # Already at the goal
+        direction_unit = direction / norm
+
+        # Check for intersections with frame bounds and select the furthest point within frame
+        max_distance = min(frame_width, frame_height) / 2  # conservative maximum view
+        temp_goal = np.array(current) + direction_unit * max_distance
+
+        # Adjust temporary goal to stay within bounds
+        if not self.in_bounds(temp_goal[0], temp_goal[1], x_min, x_max, y_min, y_max):
+            # Scale back to bounds
+            if temp_goal[0] < x_min or temp_goal[0] > x_max:
+                scale = min(abs((x_max - cx) / direction_unit[0]), abs((x_min - cx) / direction_unit[0]))
+                temp_goal = np.array(current) + direction_unit * scale
+            if temp_goal[1] < y_min or temp_goal[1] > y_max:
+                scale = min(abs((y_max - cy) / direction_unit[1]), abs((y_min - cy) / direction_unit[1]))
+                temp_goal = np.array(current) + direction_unit * scale
+
+        # Avoid obstacles
+        for ox, oy, radius in obstacles:
+            if np.linalg.norm(temp_goal - np.array([ox, oy])) <= radius*1.5:
+                # Move back slightly from the obstacle
+                away_vector = temp_goal - np.array([ox, oy])
+                temp_goal = np.array([ox, oy]) + (away_vector / np.linalg.norm(away_vector) * (radius + 1.5))
+
+        return temp_goal                         
 
     def publish_path(self, path):
         """Publish the path to the rover_path topic.

@@ -8,6 +8,7 @@ import numpy as np
 from ariadne.msg import AriadneMap
 from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import Image
+from nav_msgs.msg import Path
 import rospy
 import cv2
 from cv_bridge import CvBridge
@@ -26,13 +27,17 @@ class Heli():
         self.map.header.frame_id = 'map'
         self.map.obstacles = []
         self.map.radius = []
-        self.map.goal = Point(-30,10,0)#issue goal location?
+        self.map.goal = Point(-100,50,0)#issue goal location?
 
         self.bridge= CvBridge()
 
         # subscribe to the rover_map topic
         rospy.Subscriber("map_rover", AriadneMap, self.update_map)
         rospy.Subscriber("map_image", Image, self.image_callback)
+
+        
+
+        rospy.Subscriber("rover_path", Path, self.publish_pose2)
 
         self.pose = PoseStamped()
         self.pose.pose.position.x = 0
@@ -54,7 +59,9 @@ class Heli():
         rospy.loginfo('Heli node ok')
         # publish the pose every 10 second
         self.pose_publisher.publish(self.pose)
+        
         rospy.Timer(rospy.Duration(2), self.publish_pose)
+        # rospy.Timer(rospy.Duration(2))
 
         # TODO load these params from a config file
         self.H, self.W = 480., 720.
@@ -81,12 +88,24 @@ class Heli():
       
         T[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T[:3, 3])
         return T
+    
+    def publish_pose2(self, path):
+        rospy.loginfo('Publishing pose due to new path')
+        print(path.poses[-1].pose.position.x)
+        self.pose.pose.position.x=path.poses[-1].pose.position.x
+        self.pose.pose.position.y=path.poses[-1].pose.position.y
+        # self.pose.pose.position.z = 30.
+        # self.pose.pose.position.z=path.poses[-1].pose.position.z
+        # self.pose_publisher.publish(self.pose)
+        # move along a line in the x direction
+        # self.pose.pose.position.x -= 10.0
+        # self.map.goal.x-=15
 
     def publish_pose(self, event):
         rospy.loginfo('Publishing pose')
         self.pose_publisher.publish(self.pose)
         # move along a line in the x direction
-        self.pose.pose.position.x -= 10.0
+        # self.pose.pose.position.x -= 10.0
         # self.map.goal.x-=15
 
 
@@ -124,10 +143,10 @@ class Heli():
         # We assume all the points lay on a plane, the plane is at the distance of the camera height
         P_cam = P_cam * self.pose.pose.position.z # z is like the avg depth
         P_cam = np.vstack([P_cam, np.ones((1, P_cam.shape[1]))])
-        rospy.loginfo(f"P_cam:\n{P_cam}")
+        # rospy.loginfo(f"P_cam:\n{P_cam}")
         obs_world_homogenous = T_inv@ P_cam
-        print("tinv",T_inv)
-        print("homogenous",obs_world_homogenous)
+        # print("tinv",T_inv)
+        # print("homogenous",obs_world_homogenous)
         # rospy.loginfo(f"obs_world_homogenous:\n{obs_world_homogenous}")
         obs_world = (obs_world_homogenous[:3, :]/obs_world_homogenous[3, :]).T
         # rospy.loginfo(f"obs_world:\n{obs_world}")
@@ -186,13 +205,13 @@ class Heli():
         # add obstacles to the map
         obs_cam_plane = [obs[0] for obs in obstacles]
         
-        print("cam frame:",obs_cam_plane)
+        # print("cam frame:",obs_cam_plane)
         obs_world = self.project_obstacles(obs_cam_plane, self.K, self.msg2T(self.pose))
 
         # scale the ray according to the pose of the camera
         radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z/100 for obs in obstacles]) #issue conversion error?
         # print("rad2:",radius)
-        print("world frame:",obs_world)
+        # print("world frame:",obs_world)
         # stack obstacles and radius
         return obs_world, radius
 

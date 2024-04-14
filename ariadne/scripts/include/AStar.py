@@ -10,7 +10,7 @@ show_animation = True
 class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
-        self.resolution = 4.0
+        self.resolution = 2.0
         self.rr = 1.0
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
@@ -37,7 +37,7 @@ class AStar(Planner):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
         
-    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-55,-25,55,25] ) -> list:
+    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-55,-25,55,25] ) -> list:  #[-55,-25,55,25]
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -82,7 +82,7 @@ class AStar(Planner):
             ox.append(i[0])
             oy.append(i[1])
         self.calc_obstacle_map(ox, oy)
-        print("number of obs!!!!!!!!!!!:",obstacles.shape)
+        # print("number of obs!!!!!!!!!!!:",obstacles.shape)
 
         
 
@@ -99,7 +99,7 @@ class AStar(Planner):
         # gy=goal.y
         if isinstance(goal,np.ndarray):
 
-            gx,gy,_theta=goal  
+            gx,gy=goal  
         else:
             gx=goal.x
             gy=goal.y
@@ -109,7 +109,7 @@ class AStar(Planner):
             plt.clf()
             # plt.gca().invert_yaxis()
             
-            plt.plot(ox, oy, ".k")
+            plt.scatter(ox, oy)
             plt.plot(sx, sy, "og")
             plt.plot(gx, gy, "xb")
             plt.grid(True)
@@ -136,15 +136,15 @@ class AStar(Planner):
             current = open_set[c_id]
 
             # show graph
-            if show_animation:  # pragma: no cover
-                plt.plot(self.calc_grid_position(current.x, self.min_x),
-                         self.calc_grid_position(current.y, self.min_y), "xc")
-                # for stopping simulation with the esc key.
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                             lambda event: [exit(
-                                                 0) if event.key == 'escape' else None])
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
+            # if show_animation:  # pragma: no cover
+            #     plt.plot(self.calc_grid_position(current.x, self.min_x),
+            #              self.calc_grid_position(current.y, self.min_y), "xc")
+            #     # for stopping simulation with the esc key.
+            #     plt.gcf().canvas.mpl_connect('key_release_event',
+            #                                  lambda event: [exit(
+            #                                      0) if event.key == 'escape' else None])
+            #     if len(closed_set.keys()) % 10 == 0:
+            #         plt.pause(0.001)
 
             if current.x == goal_node.x and current.y == goal_node.y:
                 print("Find goal")
@@ -186,6 +186,7 @@ class AStar(Planner):
         # print(reversed_path)
         path=reversed_path[::-1]
         extended_path= self.add_orientation_to_path(path)
+        # print(extended_path)
         if show_animation:  # pragma: no cover
             print("showwww")
             plt.plot(rx, ry, "-r")
@@ -195,7 +196,8 @@ class AStar(Planner):
             # print(rx)
             # print(ry)
             # plt.show()
-            self.plot_path_with_orientations(extended_path)
+            # self.plot_path_with_orientations(extended_path)
+
         return extended_path
     
     def calc_final_path(self, goal_node, closed_set):
@@ -236,20 +238,24 @@ class AStar(Planner):
             
             # Calculate the angle theta between successive points
             theta = np.arctan2(y2 - y1, x2 - x1)
-            print(theta)
+            # print(theta)
             
             # Compute quaternion
             quaternion = angle_to_quaternion(theta)
             
             # Append position and orientation to the new path
-            path_with_orientation.append((x1, y1, 0) + tuple(quaternion))
+            to_append=(x1, y1, 0) + tuple(quaternion)
+            
+            path_with_orientation.append(to_append)
             
         
         # Add the last point with the same orientation as the second last point
         if path.any():
-            
-            path_with_orientation.append(tuple(path[-1]) + tuple(path_with_orientation[-1][3:]))
-        
+            print(path)
+            to_append=tuple(path[-1]) + tuple(path_with_orientation[-1][3:])
+    
+            path_with_orientation.append(to_append)
+        path_with_orientation=np.array(path_with_orientation)
         return path_with_orientation
     
     @staticmethod
@@ -359,11 +365,11 @@ class AStar(Planner):
         y_max = int((y_center + radius) // resolution)
 
         # Iterate over each cell in the bounding box
-        for x in range(x_min, x_max + 1):
-            for y in range(y_min, y_max + 1):
+        for x in range(x_min, x_max ):
+            for y in range(y_min, y_max ):
                 # Calculate the center of the cell
-                cell_center_x = (x + 0.5) * resolution
-                cell_center_y = (y + 0.5) * resolution
+                cell_center_x = (x ) * resolution
+                cell_center_y = (y )  * resolution
 
                 # Check if the center of the cell is inside the circle
                 distance = ((cell_center_x - x_center) ** 2 + (cell_center_y - y_center) ** 2) ** 0.5
@@ -378,11 +384,11 @@ def main():
     obs=np.array([[5,5,0],
                   [20,10,0],
                   [30,30,0],
-                  [60,10,0]])
+                  [30,10,0]])
     radi=[2,3,10,10]
     mapbound=[-10,-20,100,60] # min_x min_y max_x max_y
     planner=AStar()
-    path=planner.plan(np.array([10, 10,0]), np.array([50, 50,0]), obs, radi,show_animation,mapbound)
+    path=planner.plan(np.array([0, 0,0]), np.array([70, -10]), obs, radi,show_animation,mapbound)
     rx=path[:,0]
     ry=path[:,1]
 
@@ -397,9 +403,9 @@ def main():
 
     if show_animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")
-        plt.pause(1)
-        print(rx)
-        print(ry)
+        plt.pause(0.001)
+        # print(rx)
+        # print(ry)
         
         plt.show()
 
