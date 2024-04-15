@@ -8,12 +8,14 @@ import math
 
 class Controller:
 
-    def __init__(self, kp, kd, ki, starting_vel=1.5):
+    def __init__(self, kp, kd, ki, starting_vel=1.8):
         self.kp = kp
         self.kd = kd
         self.ki = ki
-        self.last_error = 0
+        self.previous_error = 0.0
         self.integral = 0
+
+        self.last_time=None
 
         self.x_vel = starting_vel
 
@@ -32,23 +34,36 @@ class Controller:
         self.moving = False
 
     
-    def control(self, current_pose, goal_pose):
+    def control(self, current_pose, goal_pose, current_time):
         self.moving = True
-        # implement the controller here
-        # it has to reach the node position (x, y, theta) given the pose of the rover
-        # send out cmd_vel messages to the rover
         
-        # Update last error for next iteration
+        if self.last_time is None:
+            self.last_time = current_time
+            return 0
+
+        dt = current_time - self.last_time
+
         error_theta = goal_pose[2] - current_pose[2]
+        rospy.loginfo('Goal theta: {}'.format(goal_pose[2]))
+        rospy.loginfo('Current theta: {}'.format(current_pose[2]))
 
-        error_theta = math.atan2(math.sin(error_theta), math.cos(error_theta))
-        rospy.loginfo('error_theta: {}'.format(error_theta*180/np.pi))
-        control_theta = self.kp * error_theta + self.kd * (error_theta - self.last_error)
+        rospy.loginfo('Error theta: {}'.format(error_theta))
 
-        self.last_error = error_theta
+        error = np.arctan2(np.sin(error_theta), 
+                           np.cos(error_theta))
+
+        rospy.loginfo('Error: {}'.format(error))
+
+        self.integral += error * dt
+        derivative = (error - self.previous_error) / dt
+
+        output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
 
         self.cmd_vel.linear.x = self.x_vel
-        self.cmd_vel.angular.z = control_theta
+        self.cmd_vel.angular.z = output
+
+        self.previous_error = error
+        self.last_time = current_time
 
         # rospy.loginfo('Sending cmd_vel: {}'.format(cmd_vel))
         self.cmd_vel_publisher.publish(self.cmd_vel)
@@ -56,6 +71,6 @@ class Controller:
         rospy.sleep(1.)
 
 
-    def __call__(self, current_pose, goal_pose):
-        self.control(current_pose, goal_pose)
+    def __call__(self, current_pose, goal_pose, current_time):
+        self.control(current_pose, goal_pose, current_time)
         return self.moving
