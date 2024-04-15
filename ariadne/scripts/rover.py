@@ -8,6 +8,7 @@ import rospy
 from include.utils import map_updater, obs2array
 from include.planner import Planner
 from include.dubins import dubins_path_planning
+from include.controller import Controller
 
 import numpy as np
 
@@ -44,7 +45,8 @@ class Rover():
         self.kp = 2.5
         self.kd = 1.5
         self.ki = 0.1
-        self.last_error = 0
+        
+        self.controller = Controller(self.kp, self.kd, self.ki, starting_vel=1.5)
         self.next_point = 0
 
         rospy.wait_for_service('/curiosity_mars_rover/mast_service')
@@ -59,11 +61,6 @@ class Rover():
 
 
         rospy.Subscriber('/gazebo/model_states', ModelStates, self.model_states_callback)
-
-        # publisher cmd_vel messages
-        self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-
-        self.moving = False
 
 
     def dynamic_callback(self, config, level):
@@ -93,7 +90,7 @@ class Rover():
 
 
     def map_callback(self, msg):
-        if self.moving:
+        if self.controller.moving:
             return
         rospy.loginfo('Received map')
         self.obstacles = msg.obstacles
@@ -179,64 +176,33 @@ class Rover():
             qy = curiosity_orientation.y
             qz = curiosity_orientation.z
             qw = curiosity_orientation.w
-            yaw_rad = np.arctan2(2 * (qw*qz + qx*qy), 1 - 2 * (qy**2 + qz**2))
 
-            yaw_deg = np.degrees(yaw_rad)
-            yaw_deg = yaw_deg % np.pi
-            yaw_rad = np.radians(yaw_deg)
+            yaw_rad = np.arctan2(2 * (qw*qz + qx*qy), 1 - 2 * (qy**2 + qz**2))
 
             self.pose = np.array([curiosity_position.x, curiosity_position.y, yaw_rad])
             
-
+            # check if the rover is moving
             if len(self.path) == 0:
                 return
-            self.controller(self.pose)
-            rospy.loginfo("'curiosity_mars_rover' position: {}, {}q".format(curiosity_position, yaw_rad))
+
+            # check if pose is close enough to the goal
+            goal_pose = self.path[self.next_point]
+            if np.linalg.norm(goal_pose[:2] - self.pose[:2]) < .5:
+                rospy.loginfo('Reached node, moving to next node')
+                self.next_point += 1
+                if self.next_point >= len(self.path):
+                    rospy.loginfo('Goal reached')
+                    self.controller.stop()
+                    return
+                goal_pose = self.path[self.next_point]
+            
+            self.controller(self.pose, goal_pose)
+            
+            rospy.loginfo("'curiosity_mars_rover' position: {}, {}".format(curiosity_position, yaw_rad))
         except ValueError:
             rospy.logwarn("'curiosity_mars_rover' not found in model_states")
 
-    def controller(self, current_pose):
-        self.moving = True
-        # implement the controller here
-        # it has to reach the node position (x, y, theta) given the pose of the rover
-        # send out cmd_vel messages to the rover
-        
-        # check if pose is close enough to the goal
-        goal_pose = self.path[self.next_point]
-        if np.linalg.norm(goal_pose[:2] - current_pose[:2]) < .5:
-            rospy.loginfo('Reached node, moving to next node')
-            self.next_point += 1
-            if self.next_point >= len(self.path):
-                rospy.loginfo('Goal reached')
-                cmd_vel = Twist()
-                cmd_vel.linear.x = 0.
-                cmd_vel.angular.z = 0.
-                cmd_vel.angular.z = 0. # stop the rover
-
-                self.cmd_vel_publisher.publish(cmd_vel)
-                self.moving = False
-                return
-            goal_pose = self.path[self.next_point]
-
-        
-        
-        # Update last error for next iteration
-        error_theta = goal_pose[2] - current_pose[2]
-
-        error_theta = math.atan2(math.sin(error_theta), math.cos(error_theta))
-        rospy.loginfo('error_theta: {}'.format(error_theta*180/np.pi))
-        control_theta = self.kp * error_theta + self.kd * (error_theta - self.last_error)
-
-        self.last_error = error_theta
-        cmd_vel = Twist()
-        cmd_vel.linear.x = 1.7
-        cmd_vel.angular.z = 0.
-        cmd_vel.angular.z = control_theta
-
-        # rospy.loginfo('Sending cmd_vel: {}'.format(cmd_vel))
-        self.cmd_vel_publisher.publish(cmd_vel)
-
-        rospy.sleep(1.)
+    
 
     # on node shutdown
     def shutdown(self):
