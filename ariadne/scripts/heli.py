@@ -60,7 +60,7 @@ class Heli():
         # publish the pose every 10 second
         self.pose_publisher.publish(self.pose)
         
-        rospy.Timer(rospy.Duration(2), self.publish_pose)
+        rospy.Timer(rospy.Duration(0.1), self.publish_pose)
         # rospy.Timer(rospy.Duration(2))
 
         # TODO load these params from a config file
@@ -83,9 +83,7 @@ class Heli():
         qw = pose.orientation.w
         rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
         T[:3, :3] = rot.as_matrix()
-
         T[:3, :3] = np.linalg.inv(rot.as_matrix())
-      
         T[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T[:3, 3])
         return T
     

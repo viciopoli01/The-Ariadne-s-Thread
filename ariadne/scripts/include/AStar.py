@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from include.planner import Planner
+from planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -196,7 +196,7 @@ class AStar(Planner):
             # print(rx)
             # print(ry)
             # plt.show()
-            # self.plot_path_with_orientations(extended_path)
+            self.plot_path_with_orientations(extended_path)
 
         return extended_path
     
@@ -213,16 +213,16 @@ class AStar(Planner):
 
         return rx, ry
     def plot_path_with_orientations(self, path_with_orientation):
-        # fig, ax = plt.subplots()
+        fig, ax = plt.subplots()
         for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
             angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
             # print(angle)
             plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=40)
-            # ax.scatter(x, y, color='blue')  # Point
+            ax.scatter(x, y, color='blue')  # Point
 
-        # ax.set_aspect('equal', adjustable='box')
-        # plt.grid(True)
-        # plt.show()
+        ax.set_aspect('equal', adjustable='box')
+        plt.grid(True)
+        plt.show()
     def add_orientation_to_path(self, path):
     # Function to calculate quaternion from an angle theta
         def angle_to_quaternion(theta):
@@ -382,13 +382,13 @@ class AStar(Planner):
 
 def main():
     obs=np.array([[5,5,0],
-                  [20,10,0],
+                  [50,10,0],
                   [30,30,0],
                   [30,10,0]])
     radi=[2,3,10,10]
     mapbound=[-10,-20,100,60] # min_x min_y max_x max_y
     planner=AStar()
-    path=planner.plan(np.array([0, 0,0]), np.array([70, -10]), obs, radi,show_animation,mapbound)
+    path=planner.plan(np.array([0, 0]), np.array([70, -10]), obs, radi,show_animation,mapbound)
     rx=path[:,0]
     ry=path[:,1]
 
