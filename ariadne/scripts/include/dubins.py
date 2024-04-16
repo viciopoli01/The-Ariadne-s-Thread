@@ -232,7 +232,7 @@ def dubins_path_planning(sx, sy, syaw, ex, ey, eyaw, c, step_size=0.1):
           * y + sy for x, y in zip(lpx, lpy)]
     pyaw = [pi_2_pi(iyaw + syaw) for iyaw in lpyaw]
 
-    if False:
+    if True:
         plt.plot(px, py, label="final course " + "".join(mode))
 
         # plotting

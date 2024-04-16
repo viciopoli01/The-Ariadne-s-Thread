@@ -3,6 +3,7 @@
 from ariadne.msg import AriadneMap
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import Odometry
 import rospy
 
 from include.utils import map_updater, obs2array
@@ -18,6 +19,9 @@ from gazebo_msgs.srv import DeleteModel
 from gazebo_msgs.msg import ModelStates
 import math
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation
+import tf.transformations
+
 
 class Rover():
 
@@ -42,11 +46,11 @@ class Rover():
         
 
         # PD controller
-        self.kp = 2.5
-        self.kd = 1.5
-        self.ki = 0.1
+        self.kp = 9.5
+        self.kd = 4.5
+        self.ki = 2.1
         
-        self.controller = Controller(self.kp, self.kd, self.ki, starting_vel=1.5)
+        self.controller = Controller(self.kp, self.kd, self.ki, starting_vel=3.5)
         self.next_point = 0
 
         rospy.wait_for_service('/curiosity_mars_rover/mast_service')
@@ -59,9 +63,11 @@ class Rover():
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
 
+        # subscribe to the odometry topic
+        rospy.Subscriber('/curiosity_mars_rover/odom', Odometry, self.odom_callback, queue_size=1)
+        # rospy.Subscriber('/gazebo/model_states', ModelStates, self.model_states_callback)
 
-        rospy.Subscriber('/gazebo/model_states', ModelStates, self.model_states_callback)
-
+        self.theta= []
 
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
@@ -158,6 +164,55 @@ class Rover():
 
         self.map_publisher.publish(map_msg)
 
+    def odom_callback(self, msg):
+        # get the pose of the rover
+        # get the yaw angle of the rover
+        qx = msg.pose.pose.orientation.x
+        qy = msg.pose.pose.orientation.y
+        qz = msg.pose.pose.orientation.z
+        qw = msg.pose.pose.orientation.w
+
+        norm = np.sqrt(qx*qx + qy*qy + qz*qz + qw*qw)
+        qx, qy, qz, qw = qx / norm, qy / norm, qz / norm, qw / norm
+        quaternion = (qx, qy, qz, qw)
+        euler = tf.transformations.euler_from_quaternion(quaternion)
+        
+        # yaw is the third element in the Euler angle tuple
+        roll, pitch, yaw = euler
+
+        # limit the yaw angle to [-pi, pi]
+        yaw = np.arctan2(np.sin(yaw), np.cos(yaw))
+        pitch = np.arctan2(np.sin(pitch), np.cos(pitch))
+        roll = np.arctan2(np.sin(roll), np.cos(roll))
+
+        self.theta.append([roll, pitch, yaw])
+        
+        # Print or use the yaw value
+        # print("Yaw: {:.4f} radians".format(yaw))
+        # # If you prefer degrees, you can convert it as follows:
+        yaw_deg = yaw * (180.0 / 3.1415926)
+        print("Yaw: {:.4f} degrees".format(yaw_deg))
+
+        self.pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, yaw])
+        
+        # return 
+        # check if the rover is moving
+        if len(self.path) == 0:
+            return
+
+        # check if pose is close enough to the goal
+        goal_pose = self.path[self.next_point]
+        if np.linalg.norm(goal_pose[:2] - self.pose[:2]) < .5:
+            rospy.loginfo('Reached node, moving to next node')
+            self.next_point += 1
+            if self.next_point >= len(self.path):
+                rospy.loginfo('Goal reached')
+                self.controller.stop()
+                return
+            goal_pose = self.path[self.next_point]
+        
+        self.controller(self.pose, goal_pose, rospy.get_time())
+        rospy.loginfo("'curiosity_mars_rover' position: {}".format(yaw))
 
     def model_states_callback(self, msg):
         model_names = msg.name
@@ -176,9 +231,15 @@ class Rover():
             qy = curiosity_orientation.y
             qz = curiosity_orientation.z
             qw = curiosity_orientation.w
+            
+            # quat to rotation matrix
+            rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
+            yaw_rad = rot.as_euler('zyx')[0]
+            rospy.loginfo('Yaw: {}'.format(yaw_rad))
+            rospy.loginfo('Pitch: {}'.format(rot.as_euler('zyx')[1]))
+            rospy.loginfo('Roll: {}'.format(rot.as_euler('zyx')[2]))
 
-            yaw_rad = np.arctan2(2 * (qw*qz + qx*qy), 1 - 2 * (qy**2 + qz**2))
-
+            return
             self.pose = np.array([curiosity_position.x, curiosity_position.y, yaw_rad])
             
             # check if the rover is moving
@@ -196,7 +257,7 @@ class Rover():
                     return
                 goal_pose = self.path[self.next_point]
             
-            self.controller(self.pose, goal_pose)
+            self.controller(self.pose, goal_pose, rospy.get_time())
             
             rospy.loginfo("'curiosity_mars_rover' position: {}, {}".format(curiosity_position, yaw_rad))
         except ValueError:
@@ -213,6 +274,11 @@ class Rover():
         self.cmd_vel_publisher.publish(cmd_vel)
         rospy.sleep(1.)
 
+        # plot theta values
+        
+        plt.plot(self.theta)
+        plt.show()
+
         rospy.signal_shutdown('Shutting down')
 
 if __name__ == '__main__':
@@ -221,3 +287,9 @@ if __name__ == '__main__':
     node = Rover()
 
     rospy.spin()
+    node.theta = np.array(node.theta)
+    plt.plot(node.theta[:,0])
+    plt.plot(node.theta[:,1])
+    plt.plot(node.theta[:,2])
+    plt.legend(['Roll', 'Pitch', 'Yaw'])
+    plt.show()

@@ -21,7 +21,7 @@ COMMAND="roscore"
 if pgrep -x "$COMMAND" >/dev/null; then
     echo "Command $COMMAND is already running."
 else
-    (roscore)
+    (roscore &)
 fi
 
 
