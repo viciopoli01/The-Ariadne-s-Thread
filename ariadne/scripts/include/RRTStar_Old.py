@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 
 from include.planner import Planner
-from include.parameters import curvature
 import copy
 import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.collections import EllipseCollection
 import sys
 import pathlib
 from scipy.spatial.transform import Rotation as Rot
@@ -16,10 +13,12 @@ from scipy.spatial.transform import Rotation as Rot
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))  # root dir
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
+show_animation = True
 
-class RRT(Planner):
+
+class RRTStar(Planner):
     def __init__(self, config=None):
-        super(RRT, self).__init__(config)
+        super(RRTStar, self).__init__(config)
         self.node_list = []
         self.start = self.Node(0, 0, 0)
         self.end = self.Node(0, 0, 0)
@@ -28,21 +27,23 @@ class RRT(Planner):
         self.workspace_max_x = 10.0
         self.workspace_min_y = -10.0
         self.workspace_max_y = 10.0
-        self.goal_sample_rate = 2
+        self.goal_sample_rate = 5
         self.max_iter = 200
         self.robot_radius = 0.0
-        self.curvature = curvature
+        self.curvature = 1.0  # for dubins path
         self.goal_yaw_th = np.deg2rad(1.0)
         self.goal_xy_th = 0.5
-        # if config is not None:
-        #     self.workspace_min_x = config['workspace_min_x']
-        #     self.workspace_max_x = config['workspace_max_x']
-        #     self.workspace_min_y = config['workspace_min_y']
-        #     self.workspace_max_y = config['workspace_max_y']
-        #     self.max_iter = config['max_iter']
-        #     self.robot_radius = config['robot_radius']
-        #     self.goal_yaw_th = config['goal_yaw_th']
-        #     self.goal_xy_th = config['goal_xy_th']
+        if config is not None:
+            self.workspace_min_x = config['workspace_min_x']
+            self.workspace_max_x = config['workspace_max_x']
+            self.workspace_min_y = config['workspace_min_y']
+            self.workspace_max_y = config['workspace_max_y']
+            self.goal_sample_rate = config['goal_sample_rate']
+            self.max_iter = config['max_iter']
+            self.robot_radius = config['robot_radius']
+            self.curvature = config['curvature']
+            self.goal_yaw_th = config['goal_yaw_th']
+            self.goal_xy_th = config['goal_xy_th']
 
     class Node:
         """
@@ -66,117 +67,62 @@ class RRT(Planner):
             self.ymin = float(area[2])
             self.ymax = float(area[3])
 
-    def plan(self, start, goal, obstacle_list: list, obstacle_radius_list: list, show_animation=True, map_bounds: list = None, search_until_max_iter=True) -> np.ndarray:
+    def plan(self, start, goal, obstacle_list, obstacle_radius_list, animation=False, search_until_max_iter=True) -> list:
         """
         execute planning
 
         animation: flag for animation on or off
         """
-        print(f'obstacles radius list RRT: {obstacle_radius_list}')
-        map_bounds = map_bounds or [-55, -25, 55, 25]
-        self.workspace_min_x = map_bounds[0]
-        self.workspace_max_x = map_bounds[2]
-        self.workspace_min_y = map_bounds[1]
-        self.workspace_max_y = map_bounds[3]
-        self.start = self.Node(start[0], start[1], 0.0)
-        self.end = self.Node(goal[0], goal[1], 0.0)
+        self.start = self.Node(start[0], start[1], start[2])
+        self.end = self.Node(goal[0], goal[1], goal[2])
         self.obstacle_list = [[obstacle_list[i][0], obstacle_list[i][1], obstacle_radius_list[i]] for i in range(len(obstacle_list))]
         self.node_list = [self.start]
-        if show_animation:  # pragma: no cover
-            # plt.clf()
-            plt.plot(start[0], start[1], "og")
-            plt.plot(goal[0], goal[1], "xb")
-            current_map = patches.Rectangle((self.workspace_min_x, self.workspace_min_y), (self.workspace_max_x - self.workspace_min_x),
-                                            (self.workspace_max_y - self.workspace_min_y), linewidth=1, edgecolor='gray', facecolor='none')
-            plt.grid(True)
-            plt.axis("equal")
-            ax = plt.gca()
-            ax.add_patch(current_map)
-            for (ox, oy, size) in self.obstacle_list:
-                ax.add_collection(EllipseCollection(widths=size * 2, heights=size * 2, angles=0,
-                                                    facecolors='k',
-                                                    offsets=(ox, oy), transOffset=ax.transData))
-                # plt.scatter(ox, oy, color="k", s=size, transform=fig.dpi_scale_trans)
-
         for i in range(self.max_iter):
-            # print("Iter:", i, ", number of nodes:", len(self.node_list))
+            print("Iter:", i, ", number of nodes:", len(self.node_list))
             rnd = self.get_random_node()
             nearest_ind = self.get_nearest_node_index(self.node_list, rnd)
             new_node = self.steer(self.node_list[nearest_ind], rnd)
 
             if self.check_collision(
                     new_node, self.obstacle_list, self.robot_radius):
-                self.node_list.append(new_node)
+                near_indexes = self.find_near_nodes(new_node)
+                new_node = self.choose_parent(new_node, near_indexes)
+                if new_node:
+                    self.node_list.append(new_node)
+                    self.rewire(new_node, near_indexes)
+
+            if animation and i % 5 == 0:
+                self.plot_start_goal_arrow()
+                self.draw_graph(rnd)
 
             if (not search_until_max_iter) and new_node:  # check reaching the goal
                 last_index = self.search_best_goal_node()
                 if last_index:
-                    print('here - last index')
-                    final_course = self.generate_final_course(last_index)
-                    if show_animation:
-                        print("show map plot")
-                        for node in self.node_list:
-                            if node.parent:
-                                plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.125)
-                        plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
-                        plt.pause(0.001)
-                        # plt.clf()
-                        # # plt.gca().invert_yaxis()
-                        #
-                        #
-                        #
-                        # plt.plot(self.start.x, self.start.y, "xr")
-                        # plt.plot(self.end.x, self.end.y, "xr")
-                        # plt.grid(True)
-                        # plt.axis("equal")
-                        # print('here')
-                        # plt.pause(0.01)
-                        # plt.show()
-                        # self.plot_start_goal_arrow()
-                        # self.draw_graph(rnd)
-                    return final_course
+                    return self.generate_final_course(last_index)
 
         print("reached max iteration")
 
         last_index = self.search_best_goal_node()
         if last_index:
-            final_course = self.generate_final_course(last_index)
-
-            if show_animation:
-                print("show map plot")
-                for node in self.node_list:
-                    if node.parent:
-                        plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.25)
-                if len(final_course) > 0:
-                    plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
-                plt.pause(0.001)
-
-            return final_course
+            return self.generate_final_course(last_index)
         else:
             print("Cannot find path")
 
-        if show_animation:
-            print("show map plot")
-            plt.pause(0.001)
-            # plt.pause(0.01)
-            # plt.show()
-            # self.plot_start_goal_arrow()
-            # self.draw_graph(rnd)
-        return np.array([])
+        return []
 
     def draw_graph(self, rnd=None):  # pragma: no cover
         plt.clf()
         # for stopping simulation with the esc key.
-        # plt.gcf().canvas.mpl_connect('key_release_event',
-        #                              lambda event: [exit(0) if event.key == 'escape' else None])
+        plt.gcf().canvas.mpl_connect('key_release_event',
+                                     lambda event: [exit(0) if event.key == 'escape' else None])
         if rnd is not None:
             plt.plot(rnd.x, rnd.y, "^k")
         for node in self.node_list:
             if node.parent:
-                plt.plot(node.path_x, node.path_y, "-g", alpha=0.25)
+                plt.plot(node.path_x, node.path_y, "-g")
 
         for (ox, oy, size) in self.obstacle_list:
-            plt.plot(ox, oy, "ok", ms=size)
+            plt.plot(ox, oy, "ok", ms=30 * size)
 
         plt.plot(self.start.x, self.start.y, "xr")
         plt.plot(self.end.x, self.end.y, "xr")
@@ -251,20 +197,16 @@ class RRT(Planner):
 
         return None
 
-    def generate_final_course(self, goal_index) -> np.ndarray:
+    def generate_final_course(self, goal_index):
         print("final")
-        quaternion = angle_to_quaternion(self.end.yaw)
-        path = [(self.end.x, self.end.y, 0.0) + tuple(quaternion)]
+        path = [[self.end.x, self.end.y]]
         node = self.node_list[goal_index]
         while node.parent:
-            for (ix, iy, i_yaw) in zip(reversed(node.path_x), reversed(node.path_y), reversed(node.path_yaw)):
-                quaternion = angle_to_quaternion(i_yaw)
-                path.append((ix, iy, 0.0) + tuple(quaternion))
+            for (ix, iy) in zip(reversed(node.path_x), reversed(node.path_y)):
+                path.append([ix, iy])
             node = node.parent
-        quaternion = angle_to_quaternion(self.start.yaw)
-        path.append((self.start.x, self.start.y, 0.0) + tuple(quaternion))
-        path.reverse()
-        return np.array(path)
+        path.append([self.start.x, self.start.y])
+        return path
 
     def calc_dist_to_goal(self, x, y):
         dx = x - self.end.x
@@ -632,10 +574,6 @@ def rot_mat_2d(angle):
 
     """
     return Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
-
-
-def angle_to_quaternion(heading_angle):
-    return np.array([0, 0, np.sin(heading_angle / 2), np.cos(heading_angle / 2)])
 
 
 def angle_mod(x, zero_2_2pi=False, degree=False):

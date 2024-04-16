@@ -4,6 +4,7 @@ from geometry_msgs.msg import Point
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from tf import transformations
+from scipy.spatial.transform import Rotation
 
 def map_updater(_map, new_obs, new_radius):
     map_updated = False
@@ -16,8 +17,8 @@ def map_updater(_map, new_obs, new_radius):
             point.y = obs[1]
             point.z = obs[2]
 
-            _map.obstacles.append(point)
-            _map.radius.append(radius)
+            _map.obstacles_coordinate_list.append(point)
+            _map.obstacles_radius_list.append(radius)
             map_updated = True
     
     return _map, map_updated
@@ -25,8 +26,8 @@ def map_updater(_map, new_obs, new_radius):
 def obs2array(_obs):
     return np.array([_obs.x, _obs.y, _obs.z])
 
-def check_obs_exists(_map, obs: np.ndarray, threshold=0.1):
-    if any(np.linalg.norm(obs - obs2array(o)) < threshold for o in _map.obstacles):
+def check_obs_exists(_map, obs: np.ndarray, threshold=2):
+    if any(np.linalg.norm(obs - obs2array(o)) < threshold for o in _map.obstacles_coordinate_list):
         return True
     return False
 
@@ -71,8 +72,27 @@ def msg2pose(msg):
     p = [pose.pose.position.x, pose.pose.position.y, yaw]
 
     # the rover frame is 90 degrees rotated from the map frame
-    p[2] += np.pi/2.
+    # p[2] += np.pi/2.
     # limit the yaw angle to [-pi, pi]
     p[2] = np.arctan2(np.sin(p[2]), np.cos(p[2]))
 
-    return p
+    return np.array(p)
+
+def msg2T(msg):
+    T = np.eye(4)
+    pose = msg.pose
+    T[0, 3] = pose.position.x
+    T[1, 3] = pose.position.y
+    T[2, 3] = pose.position.z
+    # orientation
+    qx = pose.orientation.x
+    qy = pose.orientation.y
+    qz = pose.orientation.z
+    qw = pose.orientation.w
+    rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
+    T[:3, :3] = rot.as_matrix()
+
+    T[:3, :3] = np.linalg.inv(rot.as_matrix())
+
+    T[:3, 3] = -np.linalg.inv(rot.as_matrix()) @ (T[:3, 3])
+    return T

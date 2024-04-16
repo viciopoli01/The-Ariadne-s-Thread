@@ -8,12 +8,15 @@ import numpy as np
 from ariadne.msg import AriadneMap
 from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import Image
+from nav_msgs.msg import Path, Odometry
+from std_msgs.msg import Bool
 import rospy
 import cv2
 from cv_bridge import CvBridge
 
 from scipy.spatial.transform import Rotation
-from include.utils import check_obs_exists, map_updater
+from include.utils import check_obs_exists, map_updater, msg2T, msg2pose
+
 
 class Heli():
 
@@ -21,27 +24,44 @@ class Heli():
         rospy.loginfo('Heli node started')
         self.map_publisher = rospy.Publisher('map', AriadneMap, queue_size=10)
         self.pose_publisher = rospy.Publisher('heli_pose', PoseStamped, queue_size=10)
+        self.goal_reached_publisher = rospy.Publisher('goal_reached', Bool, queue_size=10)
+
+        self.heli_speed = 1.
 
         self.map = AriadneMap()
         self.map.header.frame_id = 'map'
-        self.map.obstacles = []
-        self.map.radius = []
-        self.map.goal = Point()
+        self.map.obstacles_coordinate_list = []
+        self.map.obstacles_radius_list = []
+        self.map.goal = Point(25, -150, 0)  #issue goal location?
+        self.bridge = CvBridge()
 
-        self.bridge= CvBridge()
-
+        # subscribe to the map_image topic
+        rospy.Subscriber("map_image", Image, self.image_callback)
+        
         # subscribe to the rover_map topic
         rospy.Subscriber("map_rover", AriadneMap, self.update_map)
-        rospy.Subscriber("map_image", Image, self.image_callback)
 
+        # Subscribe to goal topic
+        rospy.Subscriber("global_goal", Point, self.update_goal)
+        self.goal = []
+
+        # subscribe to rover_pose
+        rospy.Subscriber("/curiosity_mars_rover/odom", Odometry, self.update_rover_pose)
+        self.rover_pose = []   
+
+        # subscribe to move to the goal topic
+        rospy.Subscriber("move_to_the_goal", Bool, self.move_to_the_goal_callback)
+        self.move_to_the_goal = False
+
+        # heli starting pose
         self.pose = PoseStamped()
         self.pose.pose.position.x = 0
         self.pose.pose.position.y = 0
-        self.pose.pose.position.z = 30.
+        self.pose.pose.position.z = 10.
         # this is the orientation of the camera, should point downwards
-        rot = Rotation.from_matrix([[0, 1, 0], 
-        [1, 0, 0], 
-        [0, 0, -1]])
+        rot = Rotation.from_matrix([[1, 0, 0],
+                                    [0, -1, 0],
+                                    [0, 0, -1]])
         quat = rot.as_quat()
         self.pose.pose.orientation.x = quat[0]
         self.pose.pose.orientation.y = quat[1]
@@ -49,58 +69,101 @@ class Heli():
         self.pose.pose.orientation.w = quat[3]
 
         rospy.loginfo('Heli node ok')
-        # publish the pose every 10 second
-        self.pose_publisher.publish(self.pose)
-        rospy.Timer(rospy.Duration(1), self.publish_pose)
+        
+        self.goal_reached_publisher.publish(Bool(False))
 
         # TODO load these params from a config file
         self.H, self.W = 480., 720.
         focal = 300.0
         self.K = np.array([[focal, 0, self.W / 2.],
-                      [0, focal, self.H / 2.],
-                      [0, 0, 1.]])
-    
-    def msg2T(self, msg):
-        T = np.eye(4)
-        pose = msg.pose
-        T[0, 3] = pose.position.x
-        T[1, 3] = pose.position.y
-        T[2, 3] = pose.position.z
-        # orientation
-        qx = pose.orientation.x
-        qy = pose.orientation.y
-        qz = pose.orientation.z
-        qw = pose.orientation.w
-        rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
-        T[:3, :3] = rot.as_matrix()
-        return T
+                           [0, focal, self.H / 2.],
+                           [0, 0, 1.]])
 
-    def publish_pose(self, event):
-        rospy.loginfo('Publishing pose')
-        self.pose_publisher.publish(self.pose)
-        # move along a line in the x direction
-        self.pose.pose.position.x -= 1.0
+        self.waiting_for_map = True
+        while self.waiting_for_map:
+            rospy.sleep(10.)
+            self.publish_pose()
+            rospy.loginfo('Waiting for map')
 
+
+    def move_to_the_goal_callback(self, msg):
+        self.move_to_the_goal = msg.data
+        # rospy.loginfo(f"Move to the goal: {self.move_to_the_goal}")
+
+    def update_rover_pose(self, msg):
+        # rospy.loginfo('Received rover pose')
+        self.rover_pose = msg2pose(msg)
+
+    def update_goal(self, msg):
+        # rospy.loginfo('Received goal')
+        # the z is the yaw angle
+        self.goal = np.array([msg.x, msg.y, msg.z])
+
+
+    def update_pose(self):
+        if self.rover_pose == [] or self.goal == []:
+            return
+
+        heli_pose2d = np.array([self.pose.pose.position.x, self.pose.pose.position.y, 0.])
+        # make sure the heli is not far away from the rover
+        if np.linalg.norm(self.rover_pose[:2] - heli_pose2d[:2]) > 60:
+            # the heli is too far away from the rover
+            rospy.loginfo('Heli is too far away from the rover, not moving anymore')
+            self.goal_reached_publisher.publish(Bool(True))
+            return
+
+        # the drone must move towards the goal
+        goal_direction = self.goal[:2] - heli_pose2d[:2]
+        goal_direction = goal_direction[:2]
+        goal_direction /= np.linalg.norm(goal_direction)
+
+        # speed proportional to the distance to the goal
+        dist_to_goal = np.linalg.norm(self.goal[:2] - heli_pose2d[:2])
+        goal_direction *= self.heli_speed * (dist_to_goal+1.)/60.
+        # move in the direction of the goal
+        self.pose.pose.position.x += goal_direction[0]
+        self.pose.pose.position.y += goal_direction[1]
+
+        # rospy.loginfo(f"Moving heli to the goal: {self.pose.pose.position.x}, {self.pose.pose.position.y}")
+
+
+    def publish_pose(self):
+        if self.move_to_the_goal:
+            # rospy.loginfo('Publishing heli pose')
+            self.update_pose()
+            self.pose_publisher.publish(self.pose)
+
+            if self.goal != []:
+                # check if the goal is reached
+                dist_to_goal = np.linalg.norm(self.goal[:2] - np.array([self.pose.pose.position.x, self.pose.pose.position.y]))
+                self.goal_reached_publisher.publish(Bool(dist_to_goal<1.0))
 
     def image_callback(self, msg):
+        if self.waiting_for_map:
+            # rospy.loginfo('Map image arrived')
+            self.waiting_for_map = False
         # read image from ros image msg
-        rospy.loginfo('Received image')
+        # rospy.loginfo('Received image')
         img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         # extract obstacles from the image
-        obstacles, radius = self.extract_obstacles(img)  
+        obstacles, radius = self.extract_obstacles(img)
         # rospy.loginfo(f"Obstacles:\n{obstacles.shape}, {radius.shape}")
         self.map, map_updated = map_updater(self.map, obstacles, radius)
-        
-        if map_updated:
+
+        if map_updated or not self.move_to_the_goal:
+            self.map.goal.x = self.pose.pose.position.x
+            self.map.goal.y = self.pose.pose.position.y
             self.publish_map()
+        
+        # move the heli towards the goal
+        self.publish_pose()
 
     def update_map(self, msg):
-        new_obs = msg.obstacles
-        new_radius = msg.radius
+        new_obs = msg.obstacles_coordinate_list
+        new_radius = msg.obstacles_radius_list
         self.map, new_map = map_updater(self.map, new_obs, new_radius)
         if new_map:
             self.publish_map()
-    
 
     def project_obstacles(self, obs_cam_plane, K, T):
         """ Obstacles are in the camera plane, we need to project them to the world frame
@@ -110,15 +173,18 @@ class Heli():
             T: transformation matrix from camera to world frame
         """
         obs_cam_homogenous = np.hstack([obs_cam_plane, np.ones((len(obs_cam_plane), 1))]).T
+
         T_inv = np.linalg.inv(T)
         P_cam = np.linalg.inv(K) @ obs_cam_homogenous
         # We assume all the points lay on a plane, the plane is at the distance of the camera height
-        P_cam = P_cam * self.pose.pose.position.z # z is like the avg depth
+        P_cam = P_cam * self.pose.pose.position.z  # z is like the avg depth
         P_cam = np.vstack([P_cam, np.ones((1, P_cam.shape[1]))])
         # rospy.loginfo(f"P_cam:\n{P_cam}")
         obs_world_homogenous = T_inv @ P_cam
+        # print("tinv",T_inv)
+        # print("homogenous",obs_world_homogenous)
         # rospy.loginfo(f"obs_world_homogenous:\n{obs_world_homogenous}")
-        obs_world = (obs_world_homogenous[:3, :]/obs_world_homogenous[3, :]).T
+        obs_world = (obs_world_homogenous[:3, :] / obs_world_homogenous[3, :]).T
         # rospy.loginfo(f"obs_world:\n{obs_world}")
         return obs_world
 
@@ -153,7 +219,7 @@ class Heli():
 
         # fit a circle to each obstacle
         # remove the countor that are too small
-        contours = [c for c in contours if cv2.contourArea(c) > 100]  
+        contours = [c for c in contours if cv2.contourArea(c) > 100]
         obstacles = []
         for contour in contours:
             # Fit a circle to the contour
@@ -161,22 +227,29 @@ class Heli():
             center = (int(x), int(y))
             radius = int(radius)
             obstacles.append((center, radius))
+            # print("rad1:",radius)
 
             # Draw the circle
             cv2.circle(result, center, radius, (0, 0, 255), 2)
-                
+            # print("center:",center)
 
         # Display the result
-        # cv2.imshow('Segmented Rocks', result)
-        # cv2.waitKey(0)
-        
+        cv2.imshow('Segmented Rocks', result)
+        cv2.waitKey(10)
+
         # add obstacles to the map
         obs_cam_plane = [obs[0] for obs in obstacles]
-        obs_world = self.project_obstacles(obs_cam_plane, self.K, self.msg2T(self.pose))
+
+        if len(obs_cam_plane) == 0:
+            return [], []
+
+        # print("cam frame:",obs_cam_plane)
+        obs_world = self.project_obstacles(obs_cam_plane, self.K, msg2T(self.pose))
 
         # scale the ray according to the pose of the camera
-        radius = np.array([self.K[0, 0]*obs[1]/self.pose.pose.position.z for obs in obstacles])
-
+        radius = np.array([self.K[0, 0] * obs[1] / self.pose.pose.position.z / 100 for obs in obstacles])  #issue conversion error?
+        # print("rad2:",radius)
+        # print("world frame:",obs_world)
         # stack obstacles and radius
         return obs_world, radius
 

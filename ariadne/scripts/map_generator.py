@@ -22,6 +22,7 @@ class MapGenerator():
         rospy.loginfo('Map generator node started')
 
         self.map_publisher = rospy.Publisher('map_image', Image, queue_size=10)
+        self.goal_publisher = rospy.Publisher("global_goal", Point, queue_size=10)
         self.image = None
         
         # the heli is going to send its position in the map
@@ -39,11 +40,11 @@ class MapGenerator():
 
         self.radius = []
         self.obstacleList = []
-        for i in range(150):  # at least 1 obstacle
+        for i in range(250):  # at least 1 obstacle
             # assuming the obstacles are all on a plane, in homogenous coordinates
             self.obstacleList.append([np.random.uniform(-150, 150), np.random.uniform(-150, 150), 0., 1.])
             self.radius.append(np.random.rand() * 3.0 + 2.0)
-        start = [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
+        start = [0.,0.,0.] # [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
         goal = [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))]
 
         # Check they are not in the obstacles
@@ -54,11 +55,15 @@ class MapGenerator():
                 d = math.hypot(dx, dy)
                 if d <= size+1.0:
                     return check_collision(
-                        [np.random.uniform(-2, 15), np.random.uniform(-2, 15), np.deg2rad(np.random.uniform(-math.pi, math.pi))])
+                        [np.random.uniform(-150, 150), np.random.uniform(-150, 150), np.deg2rad(np.random.uniform(-math.pi, math.pi))])
             return point
 
         self.start = check_collision(start)
         self.goal = check_collision(goal)
+
+        # remove all the obstacles that are 3 meters close to the start and goal
+        self.obstacleList = [obs for obs in self.obstacleList if np.linalg.norm(np.array(obs[:2]) - np.array(self.start[:2])) > 3.0]
+        self.obstacleList = [obs for obs in self.obstacleList if np.linalg.norm(np.array(obs[:2]) - np.array(self.goal[:2])) > 3.0]
 
         self.bridge= CvBridge()
         # spawn obstacles
@@ -68,26 +73,11 @@ class MapGenerator():
             pose.position.x = ox
             pose.position.y = oy
             pose.position.z = 0
-            # self.spawn_obstacle(pose, size, count)
+            self.spawn_obstacle(pose, size, count)
             count += 1
 
         rospy.loginfo('Map generated')
 
-
-    def msg2T(self, msg):
-        T = np.eye(4)
-        pose = msg.pose
-        T[0, 3] = pose.position.x
-        T[1, 3] = pose.position.y
-        T[2, 3] = pose.position.z
-        # orientation
-        qx = pose.orientation.x
-        qy = pose.orientation.y
-        qz = pose.orientation.z
-        qw = pose.orientation.w
-        rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
-        T[:3, :3] = rot.as_matrix()
-        return T
 
     def heli_request(self, msg):
         # rospy.loginfo('Received heli pose')
@@ -106,6 +96,10 @@ class MapGenerator():
 
         rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
         T_cw[:3, :3] = rot.as_matrix()
+
+        T_cw[:3, :3] = np.linalg.inv(rot.as_matrix())
+      
+        T_cw[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T_cw[:3, 3])
 
         self.image = self.project_obstacles(T_cw)
         self.publish_image()
@@ -148,6 +142,9 @@ class MapGenerator():
         img_msg = self.bridge.cv2_to_imgmsg(self.image, "bgr8")
 
         self.map_publisher.publish(img_msg)
+        # the goal[2] is the yaw angle
+        goal_msg = Point(self.goal[0], self.goal[1], self.goal[2])
+        self.goal_publisher.publish(goal_msg)
 
 
     # For visualization

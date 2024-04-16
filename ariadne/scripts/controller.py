@@ -4,6 +4,7 @@ from ariadne.msg import AriadneMap
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
 import rospy
 
 from include.utils import map_updater, obs2array, path2msg, msg2pose
@@ -39,6 +40,9 @@ class Controller():
         # publisher cmd_vel messages
         self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
+        # inform the nodes the rover reached the goal
+        self.goal_reached_publisher = rospy.Publisher('rover_reached_goal', Bool, queue_size=10)
+        
         # subscribe to path topic
         self.path_subscriber = rospy.Subscriber('rover_path', Path, self.path_callback)
 
@@ -53,6 +57,11 @@ class Controller():
         self.pose = None
 
         self.next_goal = 0
+
+        self.goal_reached = False
+        # 1 Hz
+        rospy.Timer(rospy.Duration(1.), lambda event: self.goal_reached_publisher.publish(Bool(self.goal_reached)))
+
 
     def stop(self):
         self.cmd_vel.linear.x = 0.
@@ -69,6 +78,12 @@ class Controller():
     def path_callback(self, msg):
         if not self.moving:
             self.path = msg2path(msg)
+            self.next_goal = 0
+            self.goal_reached = False
+            self.last_time = None
+            self.integral = 0
+            self.previous_error = 0
+            self.stop()
     
     def control(self, current_pose, goal_pose, current_time):
         self.moving = True
@@ -78,6 +93,7 @@ class Controller():
             if self.next_goal >= len(self.path):
                 self.stop()
                 rospy.loginfo('Goal reached')
+                self.goal_reached = True
                 return
             self.next_goal += 1
         
