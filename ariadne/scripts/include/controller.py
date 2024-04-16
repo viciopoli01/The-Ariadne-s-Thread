@@ -67,16 +67,16 @@ class Controller:
         output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
 
         # limit the output to [-4, 4]
-        if output > 4.0:
-            output = 4.0
-        elif output < -4.0:
-            output = -4.0
+        if output > 3.0:
+            output = 3.0
+        elif output < -3.0:
+            output = -3.0
 
 
-        self.cmd_vel.linear.x = output
+        self.cmd_vel.linear.x = 4.5
 
         # the roation is +- 1.0 according to the sign of the error
-        self.cmd_vel.angular.z = np.sign(error)*10. if abs(error) > 0.1 else 0.
+        self.cmd_vel.angular.z = np.sign(error)*10. if abs(error) > 0.05 else 0.
 
         # anti-windup
         if self.integral > 3.0:

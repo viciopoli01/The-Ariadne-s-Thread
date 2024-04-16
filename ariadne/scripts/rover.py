@@ -44,7 +44,7 @@ class Rover():
         self.pose = np.array([0., 0., 0.]) # x, y, theta
         self.path = []
         
-
+        self.init = False
         # PD controller
         self.kp = 9.5
         self.kd = 4.5
@@ -96,7 +96,7 @@ class Rover():
 
 
     def map_callback(self, msg):
-        if self.controller.moving:
+        if self.controller.moving or not self.init:
             return
         rospy.loginfo('Received map')
         self.obstacles = msg.obstacles
@@ -114,6 +114,7 @@ class Rover():
             pxs.append(px)
             pys.append(py)
             pyaws.append(pyaw)
+            break
         px = np.concatenate(pxs)
         py = np.concatenate(pys)
         pyaw = np.concatenate(pyaws)
@@ -195,6 +196,7 @@ class Rover():
 
         self.pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, yaw])
         
+        self.init = True
         # return 
         # check if the rover is moving
         if len(self.path) == 0:
