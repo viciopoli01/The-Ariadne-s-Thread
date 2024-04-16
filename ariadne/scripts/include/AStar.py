@@ -34,7 +34,7 @@ class AStar(Planner):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
 
-    def plan(self, start, goal, obstacles: list, radius: list, show_animation=True, map_bounds=None) -> np.ndarray:
+    def plan(self, start, goal, obstacles: list, radius: list, show_animation=True, map_bounds=None, search_until_max_iter=True) -> np.ndarray:
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -88,7 +88,7 @@ class AStar(Planner):
 
         if isinstance(start, np.ndarray) or isinstance(start, list):
 
-            sx, sy = start
+            sx, sy, _ = start
         else:
             sx = start.x
             sy = start.y
@@ -97,7 +97,7 @@ class AStar(Planner):
         # gy=goal.y
         if isinstance(goal, np.ndarray) or isinstance(goal, list):
 
-            gx, gy = goal
+            gx, gy, _ = goal
         else:
             print(f'goal - {goal}')
             gx = goal.x
@@ -299,11 +299,10 @@ class AStar(Planner):
         return True
 
     def calc_obstacle_map(self, ox, oy):
-
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        # self.min_x = round(min(ox))
+        # self.min_y = round(min(oy))
+        # self.max_x = round(max(ox))
+        # self.max_y = round(max(oy))
         # print("min_x:", self.min_x)
         # print("min_y:", self.min_y)
         # print("max_x:", self.max_x)

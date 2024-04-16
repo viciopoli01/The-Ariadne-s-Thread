@@ -57,7 +57,7 @@ class Heli():
         self.pose = PoseStamped()
         self.pose.pose.position.x = 0
         self.pose.pose.position.y = 0
-        self.pose.pose.position.z = 10.
+        self.pose.pose.position.z = 30.
         # this is the orientation of the camera, should point downwards
         rot = Rotation.from_matrix([[1, 0, 0],
                                     [0, -1, 0],
@@ -153,6 +153,14 @@ class Heli():
         if map_updated or not self.move_to_the_goal:
             self.map.goal.x = self.pose.pose.position.x
             self.map.goal.y = self.pose.pose.position.y
+            #
+            heli_pose2d = np.array([self.pose.pose.position.x, self.pose.pose.position.y, 0.])
+            goal_direction = self.goal[:2] - heli_pose2d[:2]
+            goal_direction = goal_direction[:2]
+            goal_direction /= np.linalg.norm(goal_direction)
+            yaw = np.arctan2(goal_direction[1], goal_direction[0])
+            # the z is the yaw angle
+            self.map.goal.z = yaw
             self.publish_map()
         
         # move the heli towards the goal

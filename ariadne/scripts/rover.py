@@ -65,8 +65,6 @@ class Rover:
         rospy.Subscriber('/curiosity_mars_rover/odom', Odometry, self.odom_callback, queue_size=1)
 
         self.pose = None
-        self.prev_pose = None
-        self.temp_goal = None
 
         # publish move to the goal
         self.move_to_the_goal_publisher = rospy.Publisher('move_to_the_goal', Bool, queue_size=10)
@@ -92,7 +90,8 @@ class Rover:
         else:
             rospy.loginfo('Using AStar')
             self.planner = AStar()
-
+        
+        self.planner = RRTStar()
         return config
 
     def map_callback(self, msg):
@@ -109,9 +108,8 @@ class Rover:
             self.obstacles_coordinate_list = msg.obstacles_coordinate_list
             self.obstacles_radius_list = msg.obstacles_radius_list
 
-            current_pose = self.pose[0:2].astype(int)
-            self.goal = np.array([msg.goal.x, msg.goal.y])
-            if np.all(abs(current_pose - self.goal) <= 2):
+            self.goal = np.array([msg.goal.x, msg.goal.y, msg.goal.z])
+            if np.linalg.norm(self.pose - self.goal) < 2:
                 rospy.loginfo('Final Goal is reached!')
                 plt.pause(10)
                 return
@@ -123,20 +121,53 @@ class Rover:
             y_center = obstacles[:, 1]
             round_obs = np.array([x_center, y_center, self.map.obstacles_radius_list]).T
             # self.temp_goal = self.find_temporary_goal(current_pose, self.goal, frame_width, frame_height, round_obs)
-            print("temp goal:", self.temp_goal)
+            print("Goal:", self.goal)
             print("current_pose:", self.pose)
             print(f"obstacles radius list: {self.map.obstacles_radius_list}")
             print(f"obstacles coord list: {self.map.obstacles_coordinate_list}")
+            
+            # rotation from pose to goal
+            yaw = np.arctan2(self.goal[1] - self.pose[1], self.goal[0] - self.pose[0])
+            # rotation matrix
+            R = Rotation.from_euler('z', yaw).as_matrix()
+            R_2d = R[:2, :2]
+            # rotate the obstacles
+            rotated_obs = np.dot(R_2d, obstacles[:, :2].T).T
 
-            path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles_coordinate_list],
+            # rotate the goal
+            rotated_goal = np.dot(R_2d, self.goal[:2])
+            rotated_goal = np.array([rotated_goal[0], rotated_goal[1], self.goal[2]])
+
+            x_min = np.min(rotated_obs[:, 0])
+            x_max = np.max(rotated_obs[:, 0])
+            y_min = np.min(rotated_obs[:, 1])
+            y_max = np.max(rotated_obs[:, 1])
+            # include the goal and the frame in the frame
+            x_min = min(x_min, rotated_goal[0])
+            x_max = max(x_max, rotated_goal[0])
+            y_min = min(y_min, rotated_goal[1])
+            y_max = max(y_max, rotated_goal[1])
+
+            x_min = min(x_min, self.pose[0])
+            x_max = max(x_max, self.pose[0])
+            y_min = min(y_min, self.pose[1])
+            y_max = max(y_max, self.pose[1])
+
+            path = self.planner.plan(self.pose, rotated_goal, rotated_obs,
                                      self.map.obstacles_radius_list, show_animation=True,
-                                     map_bounds=[int(current_pose[0] - 55), int(current_pose[1] - 25), int(current_pose[0] + 55),
-                                                 int(current_pose[1] + 25)])
+                                     map_bounds=[int(x_min - 5), 
+                                                int(y_min - 5), 
+                                                int(x_max + 5),
+                                                int(y_max + 5)])
+            
+            print(path.shape)
+            # derotate the path
+            path = np.dot(R_2d.T, path.T).T
+
             if len(path) < 1:
                 rospy.logwarn('Goal seems to be unreachable or the planner failed to find a path')
                 return
 
-            self.prev_pose = path[-1][:2]
             rospy.loginfo(f'finished rrt, final pose: {path[-1]}')
             if path.any():
                 self.can_update_map = False
