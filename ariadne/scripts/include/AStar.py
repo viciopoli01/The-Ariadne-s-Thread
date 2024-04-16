@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from planner import Planner
+from include.planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -196,7 +196,7 @@ class AStar(Planner):
             # print(rx)
             # print(ry)
             # plt.show()
-            self.plot_path_with_orientations(extended_path)
+            # self.plot_path_with_orientations(extended_path)
 
         return extended_path
     
@@ -213,16 +213,16 @@ class AStar(Planner):
 
         return rx, ry
     def plot_path_with_orientations(self, path_with_orientation):
-        fig, ax = plt.subplots()
+        # fig, ax = plt.subplots()
         for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
             angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
             # print(angle)
             plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=40)
-            ax.scatter(x, y, color='blue')  # Point
+            # ax.scatter(x, y, color='blue')  # Point
 
-        ax.set_aspect('equal', adjustable='box')
-        plt.grid(True)
-        plt.show()
+        # ax.set_aspect('equal', adjustable='box')
+        # plt.grid(True)
+        # plt.show()
     def add_orientation_to_path(self, path):
     # Function to calculate quaternion from an angle theta
         def angle_to_quaternion(theta):
@@ -304,10 +304,10 @@ class AStar(Planner):
         
     def calc_obstacle_map(self, ox, oy):
 
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        # self.min_x = round(min(ox))
+        # self.min_y = round(min(oy))
+        # self.max_x = round(max(ox))
+        # self.max_y = round(max(oy))
         # print("min_x:", self.min_x)
         # print("min_y:", self.min_y)
         # print("max_x:", self.max_x)
@@ -407,7 +407,7 @@ def main():
         # print(rx)
         # print(ry)
         
-        plt.show()
+        plt.show(block=False)
 
 if __name__ == '__main__':
     main()

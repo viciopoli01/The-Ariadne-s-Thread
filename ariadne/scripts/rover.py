@@ -79,7 +79,7 @@ class Rover():
         self.radius = msg.radius
         # update the map
         self.map,_tf= map_updater(self.map, msg.obstacles, msg.radius)
-        if np.linalg.norm(self.prev_pose-self.pose)<1 or np.linalg.norm(self.prev_pose-self.pose)==0: # issue with producing duplicated obs if update too fast
+        if  _tf: #np.linalg.norm(self.prev_pose-self.pose)<1 or np.linalg.norm(self.prev_pose-self.pose)==0: # issue with producing duplicated obs if update too fast
             self.goal = msg.goal
             current=self.pose[0:2].astype(int)
             final=[msg.goal.x,msg.goal.y]
@@ -95,8 +95,7 @@ class Rover():
             print("temp goal:", self.temp_goal)
             
 
-            path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.map.obstacles], 
-                                    self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
+            path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.obstacles], self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
             
 
             self.prev_pose=path[-1,:2]
