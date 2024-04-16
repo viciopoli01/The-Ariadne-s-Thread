@@ -222,7 +222,7 @@ class CuriosityMarsRoverAckerMan(object):
 if __name__ == "__main__":
     rospy.init_node("CuriosityRoverAckerMan_node", log_level=rospy.INFO)
     curiosity_mars_rover_ackerman_object = CuriosityMarsRoverAckerMan()
-    rate = rospy.Rate(10.0)
+    rate = rospy.Rate(60.0)
     while not rospy.is_shutdown():
         curiosity_mars_rover_ackerman_object.move_with_cmd_vel()
         rate.sleep()

@@ -149,6 +149,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/heli.py
   scripts/rover.py
+  scripts/controller.py
   scripts/map_generator.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
