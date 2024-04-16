@@ -74,12 +74,12 @@ class Controller():
         self.moving = True
 
         if np.linalg.norm(np.array(current_pose[:2]) - np.array(goal_pose[:2])) < 0.1:
-            self.next_goal += 1
             rospy.loginfo('Next goal')
             if self.next_goal >= len(self.path):
                 self.stop()
                 rospy.loginfo('Goal reached')
                 return
+            self.next_goal += 1
         
         if self.last_time is None:
             self.last_time = current_time
