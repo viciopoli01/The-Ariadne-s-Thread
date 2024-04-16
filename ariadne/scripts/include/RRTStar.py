@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 
 from include.planner import Planner
+from include.parameters import curvature
 import copy
 import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.collections import EllipseCollection
 import sys
 import pathlib
 from scipy.spatial.transform import Rotation as Rot
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))  # root dir
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
-
-show_animation = True
 
 
 class RRTStar(Planner):
@@ -27,27 +28,26 @@ class RRTStar(Planner):
         self.workspace_max_x = 10.0
         self.workspace_min_y = -10.0
         self.workspace_max_y = 10.0
-        self.goal_sample_rate = 5
+        self.goal_sample_rate = 2
         self.max_iter = 200
         self.robot_radius = 0.0
-        self.curvature = 1.0  # for dubins path
+        self.curvature = curvature
         self.goal_yaw_th = np.deg2rad(1.0)
         self.goal_xy_th = 0.5
-        if config is not None:
-            self.workspace_min_x = config['workspace_min_x']
-            self.workspace_max_x = config['workspace_max_x']
-            self.workspace_min_y = config['workspace_min_y']
-            self.workspace_max_y = config['workspace_max_y']
-            self.goal_sample_rate = config['goal_sample_rate']
-            self.max_iter = config['max_iter']
-            self.robot_radius = config['robot_radius']
-            self.curvature = config['curvature']
-            self.goal_yaw_th = config['goal_yaw_th']
-            self.goal_xy_th = config['goal_xy_th']
+        self.connect_circle_dist = 50.0
+        # if config is not None:
+        #     self.workspace_min_x = config['workspace_min_x']
+        #     self.workspace_max_x = config['workspace_max_x']
+        #     self.workspace_min_y = config['workspace_min_y']
+        #     self.workspace_max_y = config['workspace_max_y']
+        #     self.max_iter = config['max_iter']
+        #     self.robot_radius = config['robot_radius']
+        #     self.goal_yaw_th = config['goal_yaw_th']
+        #     self.goal_xy_th = config['goal_xy_th']
 
     class Node:
         """
-        RRT Node
+        RRTStar Node
         """
 
         def __init__(self, x, y, yaw):
@@ -67,18 +67,40 @@ class RRTStar(Planner):
             self.ymin = float(area[2])
             self.ymax = float(area[3])
 
-    def plan(self, start, goal, obstacle_list, obstacle_radius_list, animation=False, search_until_max_iter=True) -> list:
+    def plan(self, start, goal, obstacle_list: list, obstacle_radius_list: list, show_animation=True, map_bounds: list = None, search_until_max_iter=True) -> np.ndarray:
         """
         execute planning
 
         animation: flag for animation on or off
         """
-        self.start = self.Node(start[0], start[1], start[2])
-        self.end = self.Node(goal[0], goal[1], goal[2])
+        print(f'obstacles radius list RRTStar: {obstacle_radius_list}')
+        map_bounds = map_bounds or [-55, -25, 55, 25]
+        self.workspace_min_x = map_bounds[0]
+        self.workspace_max_x = map_bounds[2]
+        self.workspace_min_y = map_bounds[1]
+        self.workspace_max_y = map_bounds[3]
+        self.start = self.Node(start[0], start[1], 0.0)
+        self.end = self.Node(goal[0], goal[1], 0.0)
         self.obstacle_list = [[obstacle_list[i][0], obstacle_list[i][1], obstacle_radius_list[i]] for i in range(len(obstacle_list))]
         self.node_list = [self.start]
+        if show_animation:  # pragma: no cover
+            # plt.clf()
+            plt.plot(start[0], start[1], "og")
+            plt.plot(goal[0], goal[1], "xb")
+            current_map = patches.Rectangle((self.workspace_min_x, self.workspace_min_y), (self.workspace_max_x - self.workspace_min_x),
+                                            (self.workspace_max_y - self.workspace_min_y), linewidth=1, edgecolor='gray', facecolor='none')
+            plt.grid(True)
+            plt.axis("equal")
+            ax = plt.gca()
+            ax.add_patch(current_map)
+            for (ox, oy, size) in self.obstacle_list:
+                ax.add_collection(EllipseCollection(widths=size * 2, heights=size * 2, angles=0,
+                                                    facecolors='k',
+                                                    offsets=(ox, oy), transOffset=ax.transData))
+                # plt.scatter(ox, oy, color="k", s=size, transform=fig.dpi_scale_trans)
+
         for i in range(self.max_iter):
-            print("Iter:", i, ", number of nodes:", len(self.node_list))
+            # print("Iter:", i, ", number of nodes:", len(self.node_list))
             rnd = self.get_random_node()
             nearest_ind = self.get_nearest_node_index(self.node_list, rnd)
             new_node = self.steer(self.node_list[nearest_ind], rnd)
@@ -91,38 +113,75 @@ class RRTStar(Planner):
                     self.node_list.append(new_node)
                     self.rewire(new_node, near_indexes)
 
-            if animation and i % 5 == 0:
-                self.plot_start_goal_arrow()
-                self.draw_graph(rnd)
-
             if (not search_until_max_iter) and new_node:  # check reaching the goal
                 last_index = self.search_best_goal_node()
                 if last_index:
-                    return self.generate_final_course(last_index)
+                    print('here - last index')
+                    final_course = self.generate_final_course(last_index)
+                    if show_animation:
+                        print("show map plot")
+                        for node in self.node_list:
+                            if node.parent:
+                                plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.125)
+                        plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
+                        plt.pause(0.001)
+                        # plt.clf()
+                        # # plt.gca().invert_yaxis()
+                        #
+                        #
+                        #
+                        # plt.plot(self.start.x, self.start.y, "xr")
+                        # plt.plot(self.end.x, self.end.y, "xr")
+                        # plt.grid(True)
+                        # plt.axis("equal")
+                        # print('here')
+                        # plt.pause(0.01)
+                        # plt.show()
+                        # self.plot_start_goal_arrow()
+                        # self.draw_graph(rnd)
+                    return final_course
 
         print("reached max iteration")
 
         last_index = self.search_best_goal_node()
         if last_index:
-            return self.generate_final_course(last_index)
+            final_course = self.generate_final_course(last_index)
+
+            if show_animation:
+                print("show map plot")
+                for node in self.node_list:
+                    if node.parent:
+                        plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.25)
+                if len(final_course) > 0:
+                    plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
+                plt.pause(0.001)
+
+            return final_course
         else:
             print("Cannot find path")
 
-        return []
+        if show_animation:
+            print("show map plot")
+            plt.pause(0.001)
+            # plt.pause(0.01)
+            # plt.show()
+            # self.plot_start_goal_arrow()
+            # self.draw_graph(rnd)
+        return np.array([])
 
     def draw_graph(self, rnd=None):  # pragma: no cover
         plt.clf()
         # for stopping simulation with the esc key.
-        plt.gcf().canvas.mpl_connect('key_release_event',
-                                     lambda event: [exit(0) if event.key == 'escape' else None])
+        # plt.gcf().canvas.mpl_connect('key_release_event',
+        #                              lambda event: [exit(0) if event.key == 'escape' else None])
         if rnd is not None:
             plt.plot(rnd.x, rnd.y, "^k")
         for node in self.node_list:
             if node.parent:
-                plt.plot(node.path_x, node.path_y, "-g")
+                plt.plot(node.path_x, node.path_y, "-g", alpha=0.25)
 
         for (ox, oy, size) in self.obstacle_list:
-            plt.plot(ox, oy, "ok", ms=30 * size)
+            plt.plot(ox, oy, "ok", ms=size)
 
         plt.plot(self.start.x, self.start.y, "xr")
         plt.plot(self.end.x, self.end.y, "xr")
@@ -158,11 +217,14 @@ class RRTStar(Planner):
         return new_node
 
     def calc_new_cost(self, from_node, to_node):
-        _, _, _, _, course_length = plan_dubins_path(
+
+        _, _, _, _, course_lengths = plan_dubins_path(
             from_node.x, from_node.y, from_node.yaw,
             to_node.x, to_node.y, to_node.yaw, self.curvature)
 
-        return from_node.cost + course_length
+        cost = sum([abs(c) for c in course_lengths])
+
+        return from_node.cost + cost
 
     def get_random_node(self):
         if random.randint(0, 100) > self.goal_sample_rate:
@@ -197,16 +259,20 @@ class RRTStar(Planner):
 
         return None
 
-    def generate_final_course(self, goal_index):
+    def generate_final_course(self, goal_index) -> np.ndarray:
         print("final")
-        path = [[self.end.x, self.end.y]]
+        quaternion = angle_to_quaternion(self.end.yaw)
+        path = [(self.end.x, self.end.y, 0.0) + tuple(quaternion)]
         node = self.node_list[goal_index]
         while node.parent:
-            for (ix, iy) in zip(reversed(node.path_x), reversed(node.path_y)):
-                path.append([ix, iy])
+            for (ix, iy, i_yaw) in zip(reversed(node.path_x), reversed(node.path_y), reversed(node.path_yaw)):
+                quaternion = angle_to_quaternion(i_yaw)
+                path.append((ix, iy, 0.0) + tuple(quaternion))
             node = node.parent
-        path.append([self.start.x, self.start.y])
-        return path
+        quaternion = angle_to_quaternion(self.start.yaw)
+        path.append((self.start.x, self.start.y, 0.0) + tuple(quaternion))
+        path.reverse()
+        return np.array(path)
 
     def calc_dist_to_goal(self, x, y):
         dx = x - self.end.x
@@ -264,6 +330,114 @@ class RRTStar(Planner):
         d = math.hypot(dx, dy)
         theta = math.atan2(dy, dx)
         return d, theta
+
+    def find_near_nodes(self, new_node):
+        """
+        1) defines a ball centered on new_node
+        2) Returns all nodes of the three that are inside this ball
+            Arguments:
+            ---------
+                new_node: Node
+                    new randomly generated node, without collisions between
+                    its nearest node
+            Returns:
+            -------
+                list                     with the indices of the nodes inside the ball of
+                    radius r
+        """
+        nnode = len(self.node_list) + 1
+        r = self.connect_circle_dist * math.sqrt(math.log(nnode) / nnode)
+        # if expand_dist exists, search vertices in a range no more than
+        # expand_dist
+        if hasattr(self, 'expand_dis'):
+            r = min(r, self.expand_dis)
+        dist_list = [(node.x - new_node.x) ** 2 + (node.y - new_node.y) ** 2
+                     for node in self.node_list]
+        near_inds = [dist_list.index(i) for i in dist_list if i <= r ** 2]
+        return near_inds
+
+    def choose_parent(self, new_node, near_inds):
+        """
+        Computes the cheapest point to new_node contained in the list
+        near_inds and set such a node as the parent of new_node.
+            Arguments:
+            --------
+                new_node, Node
+                    randomly generated node with a path from its neared point
+                    There are not coalitions between this node and th tree.
+                near_inds: list
+                    Indices of indices of the nodes what are near to new_node
+
+            Returns.
+            ------
+                Node, a copy of new_node
+        """
+        if not near_inds:
+            return None
+
+        # search nearest cost in near_inds
+        costs = []
+        for i in near_inds:
+            near_node = self.node_list[i]
+            t_node = self.steer(near_node, new_node)
+            if t_node and self.check_collision(
+                    t_node, self.obstacle_list, self.robot_radius):
+                costs.append(self.calc_new_cost(near_node, new_node))
+            else:
+                costs.append(float("inf"))  # the cost of collision node
+        min_cost = min(costs)
+
+        if min_cost == float("inf"):
+            print("There is no good path.(min_cost is inf)")
+            return None
+
+        min_ind = near_inds[costs.index(min_cost)]
+        new_node = self.steer(self.node_list[min_ind], new_node)
+        new_node.cost = min_cost
+
+        return new_node
+
+    def rewire(self, new_node, near_inds):
+        """
+            For each node in near_inds, this will check if it is cheaper to
+            arrive to them from new_node.
+            In such a case, this will re-assign the parent of the nodes in
+            near_inds to new_node.
+            Parameters:
+            ----------
+                new_node, Node
+                    Node randomly added which can be joined to the tree
+
+                near_inds, list of uints
+                    A list of indices of the self.new_node which contains
+                    nodes within a circle of a given radius.
+            Remark: parent is designated in choose_parent.
+
+        """
+        for i in near_inds:
+            near_node = self.node_list[i]
+            edge_node = self.steer(new_node, near_node)
+            if not edge_node:
+                continue
+            edge_node.cost = self.calc_new_cost(new_node, near_node)
+
+            no_collision = self.check_collision(
+                edge_node, self.obstacle_list, self.robot_radius)
+            improved_cost = near_node.cost > edge_node.cost
+
+            if no_collision and improved_cost:
+                for node in self.node_list:
+                    if node.parent == self.node_list[i]:
+                        node.parent = edge_node
+                self.node_list[i] = edge_node
+                self.propagate_cost_to_leaves(self.node_list[i])
+
+    def propagate_cost_to_leaves(self, parent_node):
+
+        for node in self.node_list:
+            if node.parent == parent_node:
+                node.cost = self.calc_new_cost(parent_node, node)
+                self.propagate_cost_to_leaves(node)
 
 
 def plan_dubins_path(s_x, s_y, s_yaw, g_x, g_y, g_yaw, curvature,
@@ -574,6 +748,10 @@ def rot_mat_2d(angle):
 
     """
     return Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
+
+
+def angle_to_quaternion(heading_angle):
+    return np.array([0, 0, np.sin(heading_angle / 2), np.cos(heading_angle / 2)])
 
 
 def angle_mod(x, zero_2_2pi=False, degree=False):

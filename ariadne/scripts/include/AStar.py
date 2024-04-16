@@ -4,7 +4,8 @@ from include.planner import Planner
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-show_animation = True
+
+animation = True
 
 
 class AStar(Planner):
@@ -18,14 +19,10 @@ class AStar(Planner):
         self.x_width, self.y_width = 0, 0
         self.motion = self.get_motion_model()
 
-        self.x_center=[]
-        self.y_center=[]
-        self.radius=[]
+        self.x_center = []
+        self.y_center = []
+        self.radius = []
 
-        
-
-    
-    
     class Node:
         def __init__(self, x, y, cost, parent_index):
             self.x = x  # index of grid
@@ -36,8 +33,8 @@ class AStar(Planner):
         def __str__(self):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
-        
-    def plan(self, start, goal, obstacles: list, radius: list, show_animation=True, map_bounds=[-55, -25, 55, 25]) -> list:  #[-55,-25,55,25]
+
+    def plan(self, start, goal, obstacles: list, radius: list, show_animation=True, map_bounds=None) -> np.ndarray:
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -45,36 +42,39 @@ class AStar(Planner):
             goal (list): list of x, y coordinates of the goal point
             obstacles (list): list of obstacles, each obstacle is a tuple (x, y, 0)
             radius (list): list of radius of obstacles
+            map_bounds (list): list of map bounds
+            show_animation (boolean): a boolean indicating whether to show the map or not
         
         Returns:
             list: This must be a valid list of connected nodes that form
                 a path from start to goal node
         """
-        
-        obstacles=np.array(obstacles)
-        print("obs:",obstacles)
-        print("rad:",radius)
-        self.x_center=obstacles[:,0]
-        self.y_center=obstacles[:,1]
-        self.raius=radius
-        obs_points=[]
-        round_obs=np.array([self.x_center,self.y_center,self.raius]).T
+
+        obstacles = np.array(obstacles)
+        map_bounds = map_bounds or [-55, -25, 55, 25]
+        # print("obs:", obstacles)
+        # print("rad:", radius)
+        self.x_center = obstacles[:, 0]
+        self.y_center = obstacles[:, 1]
+        self.radius = radius
+        obs_points = []
+        round_obs = np.array([self.x_center, self.y_center, self.radius]).T
         for x_center, y_center, radius in round_obs:
             # points = circle_to_points(x_center, y_center, radius, num_points=16)
             points = self.circle_to_grid_cells(x_center, y_center, radius)
             obs_points.extend(points)
-        ox,oy=[],[]
+        ox, oy = [], []
         self.min_x, self.min_y, self.max_x, self.max_y = map_bounds
-        for i in range(self.min_x,self.max_x):
+        for i in range(self.min_x, self.max_x):
             ox.append(i)
             oy.append(self.min_y)
-        for i in range(self.min_y,self.max_y):
+        for i in range(self.min_y, self.max_y):
             ox.append(self.max_x)
             oy.append(i)
-        for i in range(self.min_x,self.max_x):
+        for i in range(self.min_x, self.max_x):
             ox.append(i)
             oy.append(self.max_y)
-        for i in range(self.min_y,self.max_y):
+        for i in range(self.min_y, self.max_y):
             ox.append(self.min_x)
             oy.append(i)
 
@@ -84,32 +84,30 @@ class AStar(Planner):
         self.calc_obstacle_map(ox, oy)
         # print("number of obs!!!!!!!!!!!:",obstacles.shape)
 
-        
-
         # sx,sy=start
 
-        if isinstance(start,np.ndarray):
+        if isinstance(start, np.ndarray) or isinstance(start, list):
 
-            sx,sy=start
+            sx, sy = start
         else:
-            sx=start.x
-            sy=start.y
+            sx = start.x
+            sy = start.y
         # print("goal:",goal)
         # gx=goal.x
         # gy=goal.y
-        if isinstance(goal,np.ndarray):
+        if isinstance(goal, np.ndarray) or isinstance(goal, list):
 
-            gx,gy=goal  
+            gx, gy = goal
         else:
-            gx=goal.x
-            gy=goal.y
-
+            print(f'goal - {goal}')
+            gx = goal.x
+            gy = goal.y
 
         if show_animation:  # pragma: no cover
             plt.clf()
             # plt.gca().invert_yaxis()
-            
-            plt.scatter(ox, oy,s=2)
+
+            plt.scatter(ox, oy, s=2)
             plt.plot(sx, sy, "og")
             plt.plot(gx, gy, "xb")
             plt.grid(True)
@@ -181,14 +179,13 @@ class AStar(Planner):
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
 
-        
-        reversed_path=np.array([rx,ry,np.zeros(len(rx))]).T
+        reversed_path = np.array([rx, ry, np.zeros(len(rx))]).T
         # print(reversed_path)
-        path=reversed_path[::-1]
-        extended_path= self.add_orientation_to_path(path)
+        path = reversed_path[::-1]
+        extended_path = self.add_orientation_to_path(path)
         # print(extended_path)
         if show_animation:  # pragma: no cover
-            print("showwww")
+            print("show map plot")
             plt.plot(rx, ry, "-r")
             plt.pause(0.001)
             # plt.clf()
@@ -199,7 +196,7 @@ class AStar(Planner):
             # self.plot_path_with_orientations(extended_path)
 
         return extended_path
-    
+
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
         rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [
@@ -212,52 +209,53 @@ class AStar(Planner):
             parent_index = n.parent_index
 
         return rx, ry
+
     def plot_path_with_orientations(self, path_with_orientation):
         # fig, ax = plt.subplots()
         for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
             angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
             # print(angle)
-            plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=40)
+            plt.quiver(x, y, np.cos(angle), np.sin(angle), color='red', scale=40)
             # ax.scatter(x, y, color='blue')  # Point
 
         # ax.set_aspect('equal', adjustable='box')
         # plt.grid(True)
         # plt.show()
+
     def add_orientation_to_path(self, path):
-    # Function to calculate quaternion from an angle theta
-        def angle_to_quaternion(theta):
-            return np.array([0, 0, np.sin(theta / 2), np.cos(theta / 2)])
-        
+        # Function to calculate quaternion from an angle theta
+        def angle_to_quaternion(heading_angle):
+            return np.array([0, 0, np.sin(heading_angle / 2), np.cos(heading_angle / 2)])
+
         # Initialize the path with orientation
         path_with_orientation = []
-        
+
         # Iterate over the path to calculate the orientation at each step
         for i in range(len(path) - 1):
             x1, y1, _ = path[i]
             x2, y2, _ = path[i + 1]
-            
+
             # Calculate the angle theta between successive points
             theta = np.arctan2(y2 - y1, x2 - x1)
             # print(theta)
-            
+
             # Compute quaternion
             quaternion = angle_to_quaternion(theta)
-            
+
             # Append position and orientation to the new path
-            to_append=(x1, y1, 0) + tuple(quaternion)
-            
+            to_append = (x1, y1, 0) + tuple(quaternion)
+
             path_with_orientation.append(to_append)
-            
-        
+
         # Add the last point with the same orientation as the second last point
         if path.any():
-            print(path)
-            to_append=tuple(path[-1]) + tuple(path_with_orientation[-1][3:])
-    
+            # print(path)
+            to_append = tuple(path[-1]) + tuple(path_with_orientation[-1][3:])
+
             path_with_orientation.append(to_append)
-        path_with_orientation=np.array(path_with_orientation)
+        path_with_orientation = np.array(path_with_orientation)
         return path_with_orientation
-    
+
     @staticmethod
     def calc_heuristic(n1, n2):
         w = 1.0  # weight of heuristic
@@ -300,8 +298,6 @@ class AStar(Planner):
 
         return True
 
-        
-        
     def calc_obstacle_map(self, ox, oy):
 
         self.min_x = round(min(ox))
@@ -330,6 +326,7 @@ class AStar(Planner):
                     if d <= self.rr:
                         self.obstacle_map[ix][iy] = True
                         break
+
     @staticmethod
     def get_motion_model():
         # dx, dy, cost
@@ -343,7 +340,7 @@ class AStar(Planner):
                   [1, 1, math.sqrt(2)]]
 
         return motion
-    
+
     def circle_to_grid_cells(self, x_center, y_center, radius, resolution=1):
         """
         Calculate grid cells occupied by a circular obstacle.
@@ -365,32 +362,31 @@ class AStar(Planner):
         y_max = int((y_center + radius) // resolution)
 
         # Iterate over each cell in the bounding box
-        for x in range(x_min, x_max ):
-            for y in range(y_min, y_max ):
+        for x in range(x_min, x_max):
+            for y in range(y_min, y_max):
                 # Calculate the center of the cell
-                cell_center_x = (x ) * resolution
-                cell_center_y = (y )  * resolution
+                cell_center_x = x * resolution
+                cell_center_y = y * resolution
 
                 # Check if the center of the cell is inside the circle
                 distance = ((cell_center_x - x_center) ** 2 + (cell_center_y - y_center) ** 2) ** 0.5
                 if distance <= radius:
                     occupied_cells.append((x, y))
 
-        return occupied_cells                                                           
-
+        return occupied_cells
 
 
 def main():
-    obs=np.array([[5,5,0],
-                  [20,10,0],
-                  [30,30,0],
-                  [30,10,0]])
-    radi=[2,3,10,10]
-    mapbound=[-10,-20,100,60] # min_x min_y max_x max_y
-    planner=AStar()
-    path=planner.plan(np.array([0, 0,0]), np.array([70, -10]), obs, radi,show_animation,mapbound)
-    rx=path[:,0]
-    ry=path[:,1]
+    obs = [[5, 5, 0],
+           [20, 10, 0],
+           [30, 30, 0],
+           [30, 10, 0]]
+    radi = [2, 3, 10, 10]
+    map_bounds = [-10, -20, 100, 60]  # min_x min_y max_x max_y
+    planner = AStar()
+    path = planner.plan([0, 0, 0], [70, -10], obs, radi, animation, map_bounds)
+    rx = path[:, 0]
+    ry = path[:, 1]
 
     # if show_animation:  # pragma: no cover
     #     plt.plot(ox, oy, ".k")
@@ -399,15 +395,14 @@ def main():
     #     plt.grid(True)
     #     plt.axis("equal")
 
-   
-
-    if show_animation:  # pragma: no cover
+    if animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")
         plt.pause(0.001)
         # print(rx)
         # print(ry)
-        
+
         plt.show()
+
 
 if __name__ == '__main__':
     main()
