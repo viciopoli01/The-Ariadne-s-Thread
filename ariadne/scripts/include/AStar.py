@@ -37,7 +37,7 @@ class AStar(Planner):
             return str(self.x) + "," + str(self.y) + "," + str(
                 self.cost) + "," + str(self.parent_index)
         
-    def plan(self, start, goal, obstacles: list, radius: list,show_animation=True,mapbound=[-55,-25,55,25] ) -> list:  #[-55,-25,55,25]
+    def plan(self, start, goal, obstacles: list, radius: list, show_animation=True, map_bounds=[-55, -25, 55, 25]) -> list:  #[-55,-25,55,25]
         """ Plan a path from start to goal avoiding obstacles.
 
         Args:
@@ -64,7 +64,7 @@ class AStar(Planner):
             points = self.circle_to_grid_cells(x_center, y_center, radius)
             obs_points.extend(points)
         ox,oy=[],[]
-        self.min_x, self.min_y, self.max_x, self.max_y = mapbound
+        self.min_x, self.min_y, self.max_x, self.max_y = map_bounds
         for i in range(self.min_x,self.max_x):
             ox.append(i)
             oy.append(self.min_y)
@@ -295,7 +295,7 @@ class AStar(Planner):
             return False
 
         # collision check
-        if self.obstacle_map[node.x][node.y]:
+        if self.obstacle_map[int(node.x)][int(node.y)]:
             return False
 
         return True

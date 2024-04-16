@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 from ariadne.msg import AriadneMap
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
@@ -7,6 +6,7 @@ import rospy
 
 from include.utils import map_updater, obs2array
 from include.planner import Planner
+from include.parameters import planner_algo
 
 import numpy as np
 
@@ -33,6 +33,7 @@ class Rover():
         self.map.radius = []
 
         self.planner = Planner()
+        print('here')
         self.dyn_srv = Server(AriadneConfig, self.dynamic_callback)
         # self.planner = Planner()
         self.pose = np.array([0,0])
@@ -47,28 +48,19 @@ class Rover():
         
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
-        # print(config)
-        if config['planner_algo'] == -1:
-            rospy.loginfo('Using MyCustomPlanner')
-            self.planner = Planner()
-        elif config['planner_algo'] == 0:
+        print(planner_algo)
+        if planner_algo == 'RRT':
             from include.RRT import RRT
-            from include.AStar import AStar
             rospy.loginfo('Using RRT')
-            rospy.loginfo('Using force Astar') #issue unable to call a star using terminal
-            self.planner = AStar()
-        elif config['planner_algo'] == 1:
+            self.planner = RRT()
+        elif planner_algo == 'RRTStar':
             from include.RRTStar import RRTStar
             rospy.loginfo('Using RRT*')
             self.planner = RRTStar()
-        elif config['planner_algo'] == 2:
+        else:
             from include.AStar import AStar
-            rospy.loginfo('Using A*')
+            rospy.loginfo('Using AStar')
             self.planner = AStar()
-        elif config['planner_algo'] == 3:
-            from include.DStar import DStar
-            rospy.loginfo('Using D*')
-            self.planner = DStar()
 
         return config
 
@@ -79,6 +71,8 @@ class Rover():
         self.radius = msg.radius
         # update the map
         self.map,_tf= map_updater(self.map, msg.obstacles, msg.radius)
+        print(f'norm is = {self.prev_pose}')
+        print(f'norm is = {self.pose}')
         if np.linalg.norm(self.prev_pose-self.pose)<1 or np.linalg.norm(self.prev_pose-self.pose)==0: # issue with producing duplicated obs if update too fast
             self.goal = msg.goal
             current=self.pose[0:2].astype(int)
@@ -96,10 +90,10 @@ class Rover():
             
 
             path = self.planner.plan(self.pose, self.temp_goal, [obs2array(o) for o in self.map.obstacles], 
-                                    self.map.radius,show_animation=True,mapbound=[current[0]-55,current[1]-25,current[0]+55,current[1]+25] )
+                                    self.map.radius,show_animation=True,map_bounds=[int(current[0]-55),int(current[1]-25),int(current[0]+55),int(current[1]+25)] )
             
-
-            self.prev_pose=path[-1,:2]
+            print(f'last node in the path: {path[-1]}, type: {type(path)}')
+            self.prev_pose=path[-1]
             if path.any():
                 self.publish_path(path)
 
@@ -167,15 +161,16 @@ class Rover():
             """
         path_msg = Path()
         for p in path:
+            print(f'p: {p}')
             pose = PoseStamped()
             pose.pose.position.x = p[0]
             pose.pose.position.y = p[1]
-            pose.pose.position.z = p[2]
+            pose.pose.position.z = 0.0
             # orientation
-            pose.pose.orientation.x = p[3]
-            pose.pose.orientation.y = p[4]
-            pose.pose.orientation.z = p[5]
-            pose.pose.orientation.w = p[6]
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = 0.0
+            pose.pose.orientation.w = p[2]
             path_msg.poses.append(pose)
         self.path_publisher.publish(path_msg)
 
