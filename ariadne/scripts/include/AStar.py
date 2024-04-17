@@ -11,7 +11,7 @@ animation = True
 class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
-        self.resolution = 2.0
+        self.resolution = 5.0
         self.rr = 1.3
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
@@ -254,7 +254,7 @@ class AStar(Planner):
             path_with_orientation.append(to_append)
 
         # Add the last point with the same orientation as the second last point
-        if path.any():
+        if path.any() and (len(path) > 0) and (len(path_with_orientation) > 0):
             # print(path)
             to_append = tuple(path[-1]) + tuple(path_with_orientation[-1][3:])
 
@@ -306,10 +306,10 @@ class AStar(Planner):
 
     def calc_obstacle_map(self, ox, oy):
 
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        # self.min_x = round(min(ox))
+        # self.min_y = round(min(oy))
+        # self.max_x = round(max(ox))
+        # self.max_y = round(max(oy))
         # print("min_x:", self.min_x)
         # print("min_y:", self.min_y)
         # print("max_x:", self.max_x)
