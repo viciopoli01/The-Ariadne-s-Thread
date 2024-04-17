@@ -60,7 +60,7 @@ class Heli():
         # publish the pose every 10 second
         self.pose_publisher.publish(self.pose)
         
-        rospy.Timer(rospy.Duration(2), self.publish_pose)
+        rospy.Timer(rospy.Duration(4), self.publish_pose)
         # rospy.Timer(rospy.Duration(2))
 
         # TODO load these params from a config file

@@ -407,7 +407,7 @@ def main():
         # print(rx)
         # print(ry)
         
-        plt.show(block=False)
+        plt.show(block=True)
 
 if __name__ == '__main__':
     main()
