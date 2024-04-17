@@ -11,7 +11,7 @@ animation = True
 class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
-        self.resolution = 5.0
+        self.resolution = 7.0
         self.rr = 1.3
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
@@ -179,11 +179,7 @@ class AStar(Planner):
                         open_set[n_id] = node
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
-        cost_node_index = goal_node.parent_index
-        self.cost = goal_node.cost
-        while cost_node_index >= 0:
-            self.cost += closed_set[cost_node_index].cost
-            cost_node_index = closed_set[cost_node_index].parent_index
+        self.cost = goal_node.cost * self.resolution
 
         reversed_path = np.array([rx, ry, np.zeros(len(rx))]).T
         # print(reversed_path)

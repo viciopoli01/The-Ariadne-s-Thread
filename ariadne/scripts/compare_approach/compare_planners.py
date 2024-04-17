@@ -95,6 +95,8 @@ def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float
     rrt_planner = RRT()
     rrt_start_planner = RRTStar()
     astar_planner = AStar()
+    rrt_planner.max_iter_after_reach = 80
+    rrt_start_planner.max_iter_after_reach = 40
 
     global_goal_pose, obstacles = generate_map(map_width, map_height, num_obstacles, rover_radius, max_obstacle_radius, dupin_curvature)
     current_pose = np.array([0, 0, 0])
@@ -120,11 +122,11 @@ def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float
     # RRT
     t = time.time()
     rrt_course = rrt_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=False,
-                                  map_bounds=[-helicopter_servey_width / 2, -helicopter_servey_height / 2, helicopter_servey_width / 2, helicopter_servey_height / 2],
+                                  map_bounds=[-map_width / 2, -map_height / 2, map_width / 2, map_height / 2],
                                   search_until_max_iter=False)
     rrt_cost += rrt_planner.cost
     rrt_time += time.time() - t
-    print('rrt_cost', rrt_cost)
+    # print('rrt_cost', rrt_cost)
     if rrt_planner.cost <= 0:
         rrt_failed = True
         rrt_cost = -1
@@ -132,13 +134,13 @@ def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float
         print(f'rrt failed to find path')
     # RRT Star
     t = time.time()
-    rrt_star_course = rrt_start_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=True,
-                                             map_bounds=[-helicopter_servey_width / 2, -helicopter_servey_height / 2, helicopter_servey_width / 2,
-                                                         helicopter_servey_height / 2],
+    rrt_star_course = rrt_start_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=False,
+                                             map_bounds=[-map_width / 2, -map_height / 2, map_width / 2,
+                                                         map_height / 2],
                                              search_until_max_iter=False)
     rrt_star_cost += rrt_start_planner.cost
     rrt_star_time += time.time() - t
-    print('rrt_star_cost', rrt_star_cost)
+    # print('rrt_star_cost', rrt_star_cost)
     if rrt_start_planner.cost <= 0:
         rrt_star_failed = True
         rrt_star_cost = -1
@@ -147,11 +149,11 @@ def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float
     # A Star
     t = time.time()
     astar_course = astar_planner.plan(current_pose[:2], local_goal_pose[:2], list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=False,
-                                      map_bounds=[int(-helicopter_servey_width / 2), int(-helicopter_servey_height / 2), int(helicopter_servey_width / 2),
-                                                  int(helicopter_servey_height / 2)])
+                                      map_bounds=[int(-map_width / 2), int(-map_height / 2), int(map_width / 2),
+                                                  int(map_height / 2)])
     astar_cost += astar_planner.cost
     astar_time += time.time() - t
-    print('astar_cost', astar_cost)
+    # print('astar_cost', astar_cost)
     if astar_planner.cost <= 0:
         astar_failed = True
         astar_cost = -1
@@ -173,6 +175,8 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
     rrt_planner = RRT()
     rrt_start_planner = RRTStar()
     astar_planner = AStar()
+    rrt_planner.max_iter_after_reach = 20
+    rrt_start_planner.max_iter_after_reach = 10
 
     global_goal_pose, obstacles = generate_map(map_width, map_height, num_obstacles, rover_radius, max_obstacle_radius, dupin_curvature)
     current_pose = np.array([0, 0, 0])
@@ -204,7 +208,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
                                           search_until_max_iter=False)
             rrt_cost += rrt_planner.cost
             rrt_time += time.time() - t
-            print('rrt_cost', rrt_cost)
+            # print('rrt_cost', rrt_cost)
 
             if rrt_planner.cost <= 0:
                 rrt_failed = True
@@ -214,13 +218,13 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
 
         if not rrt_star_failed:
             t = time.time()
-            rrt_star_course = rrt_start_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=True,
+            rrt_star_course = rrt_start_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=False,
                                                      map_bounds=[-helicopter_servey_width / 2, -helicopter_servey_height / 2, helicopter_servey_width / 2,
                                                                  helicopter_servey_height / 2],
                                                      search_until_max_iter=False)
             rrt_star_cost += rrt_start_planner.cost
             rrt_star_time += time.time() - t
-            print('rrt_star_cost', rrt_star_cost)
+            # print('rrt_star_cost', rrt_star_cost)
             if rrt_start_planner.cost <= 0:
                 rrt_star_failed = True
                 rrt_star_cost = -1
@@ -233,7 +237,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
                                                           int(helicopter_servey_height / 2)])
             astar_cost += astar_planner.cost
             astar_time += time.time() - t
-            print('astar_cost', astar_cost)
+            # print('astar_cost', astar_cost)
             if astar_planner.cost <= 0:
                 astar_failed = True
                 astar_cost = -1
@@ -245,7 +249,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
         for i in range(len(obstacles)):
             obstacles[i, :2] = obstacles[i, :2] - local_goal_pose[:2]
         local_goal_pose = find_temporary_goal(current_pose[:2], global_goal_pose, helicopter_servey_width, helicopter_servey_height, obstacles)
-        print(f'finished planning local map {local_map_number}')
+        # print(f'finished planning local map {local_map_number}')
         # plt.grid(True)
         # plt.xlim([-map_width / 2, map_width / 2])
         # plt.ylim([-map_height / 2, map_height / 2])
@@ -268,7 +272,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
 
 def main():
     # Run for 100 randomly generated maps
-    n_random_maps = 3
+    n_random_maps = 5
     local_rrt_failed = 0
     local_rrt_star_failed = 0
     local_astar_failed = 0
@@ -289,7 +293,7 @@ def main():
     global_astar_time = [-1] * n_random_maps
 
     for i in range(n_random_maps):
-        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_global()
+        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_with_heli()
         local_rrt_failed += rrt_failed
         local_rrt_star_failed += rrt_star_failed
         local_astar_failed += astar_failed
@@ -299,7 +303,7 @@ def main():
         local_rrt_time[i] = rrt_time
         local_rrt_star_time[i] = rrt_star_time
         local_astar_time[i] = astar_time
-        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_with_heli()
+        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_global()
         global_rrt_failed += rrt_failed
         global_rrt_star_failed += rrt_star_failed
         global_astar_failed += astar_failed
@@ -309,13 +313,8 @@ def main():
         global_rrt_time[i] = rrt_time
         global_rrt_star_time[i] = rrt_star_time
         global_astar_time[i] = astar_time
+        print(f'************************************ FINISHED PLANNING RANDOM MAP {i+1}/{n_random_maps} ************************************')
 
-    # plt.hist(local_rrt_cost)
-    # plt.hist(local_rrt_star_cost)
-    # plt.hist(local_astar_cost)
-    # plt.hist(global_rrt_cost)
-    # plt.hist(global_rrt_star_cost)
-    # plt.hist(global_astar_cost)
     print(f'local rrt failed {local_rrt_failed}')
     print(f'local rrt star failed {local_rrt_star_failed}')
     print(f'local a star failed {local_astar_failed}')
@@ -336,12 +335,12 @@ def main():
     print(f'global a star time: {global_astar_time}')
     # Save all results to dataframe
     fail_count_df = pd.DataFrame()
-    fail_count_df['local_rrt_failed'] = local_rrt_failed
-    fail_count_df['local_rrt_star_failed'] = local_rrt_star_failed
-    fail_count_df['local_astar_failed'] = local_astar_failed
-    fail_count_df['global_rrt_failed'] = global_rrt_failed
-    fail_count_df['global_rrt_star_failed'] = global_rrt_star_failed
-    fail_count_df['global_astar_failed'] = global_astar_failed
+    fail_count_df['local_rrt_failed'] = [local_rrt_failed]
+    fail_count_df['local_rrt_star_failed'] = [local_rrt_star_failed]
+    fail_count_df['local_astar_failed'] = [local_astar_failed]
+    fail_count_df['global_rrt_failed'] = [global_rrt_failed]
+    fail_count_df['global_rrt_star_failed'] = [global_rrt_star_failed]
+    fail_count_df['global_astar_failed'] = [global_astar_failed]
     results_df = pd.DataFrame()
     results_df['local_rrt_cost'] = local_rrt_cost
     results_df['local_rrt_star_cost'] = local_rrt_star_cost
@@ -357,7 +356,34 @@ def main():
     results_df['global_astar_time'] = global_astar_time
     fail_count_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/fail_count.csv', index=False)
     results_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/results.csv', index=False)
-
+    valid_local_rrt_indicies = np.where(results_df.local_rrt_cost > 0)[0]
+    valid_local_rrt_star_indicies = np.where(results_df.local_rrt_star_cost > 0)[0]
+    valid_local_astar_indicies = np.where(results_df.local_astar_cost > 0)[0]
+    valid_global_rrt_indicies = np.where(results_df.global_rrt_cost > 0)[0]
+    valid_global_rrt_star_indicies = np.where(results_df.global_rrt_star_cost > 0)[0]
+    valid_global_astar_indicies = np.where(results_df.global_astar_cost > 0)[0]
+    plt.hist(results_df.local_rrt_cost[valid_local_rrt_indicies], label='local rrt', alpha=0.5)
+    plt.hist(results_df.local_rrt_star_cost[valid_local_rrt_star_indicies], label='local rrt star', alpha=0.5)
+    plt.hist(results_df.local_astar_cost[valid_local_astar_indicies], label='local a star', alpha=0.5)
+    plt.hist(results_df.global_rrt_cost[valid_global_rrt_indicies], label='global rrt', alpha=0.5)
+    plt.hist(results_df.global_rrt_star_cost[valid_global_rrt_star_indicies], label='global rrt star', alpha=0.5)
+    plt.hist(results_df.global_astar_cost[valid_global_astar_indicies], label='global a star', alpha=0.5)
+    plt.legend()
+    plt.xlabel('distance in meters')
+    plt.ylabel('count of random maps')
+    plt.title('Rover Distance Cost with Different Planners')
+    plt.show()
+    plt.hist(results_df.local_rrt_time[valid_local_rrt_indicies], label='local rrt', alpha=0.5)
+    plt.hist(results_df.local_rrt_star_time[valid_local_rrt_star_indicies], label='local rrt star', alpha=0.5)
+    plt.hist(results_df.local_astar_time[valid_local_astar_indicies], label='local a star', alpha=0.5)
+    plt.hist(results_df.global_rrt_time[valid_global_rrt_indicies], label='global rrt', alpha=0.5)
+    plt.hist(results_df.global_rrt_star_time[valid_global_rrt_star_indicies], label='global rrt star', alpha=0.5)
+    plt.hist(results_df.global_astar_time[valid_global_astar_indicies], label='global a star', alpha=0.5)
+    plt.legend()
+    plt.xlabel('running time in seconds')
+    plt.ylabel('count of random maps')
+    plt.title('Planner running time')
+    plt.show()
 
 if __name__ == '__main__':
     main()
