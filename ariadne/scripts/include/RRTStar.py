@@ -29,12 +29,14 @@ class RRTStar(Planner):
         self.workspace_min_y = -10.0
         self.workspace_max_y = 10.0
         self.goal_sample_rate = 2
-        self.max_iter = 200
+        self.max_iter = 800
+        self.max_iter_after_reach = 20
         self.robot_radius = 0.0
         self.curvature = curvature
         self.goal_yaw_th = np.deg2rad(1.0)
         self.goal_xy_th = 0.5
-        self.connect_circle_dist = 50.0
+        self.connect_circle_dist = 250.0
+        self.cost = 0
         # if config is not None:
         #     self.workspace_min_x = config['workspace_min_x']
         #     self.workspace_max_x = config['workspace_max_x']
@@ -73,7 +75,7 @@ class RRTStar(Planner):
 
         animation: flag for animation on or off
         """
-        print(f'obstacles radius list RRTStar: {obstacle_radius_list}')
+        # print(f'obstacles radius list RRTStar: {obstacle_radius_list}')
         map_bounds = map_bounds or [-55, -25, 55, 25]
         self.workspace_min_x = map_bounds[0]
         self.workspace_max_x = map_bounds[2]
@@ -85,13 +87,11 @@ class RRTStar(Planner):
         self.node_list = [self.start]
         if show_animation:  # pragma: no cover
             # plt.clf()
-            plt.plot(start[0], start[1], "og")
-            plt.plot(goal[0], goal[1], "xb")
-            current_map = patches.Rectangle((self.workspace_min_x, self.workspace_min_y), (self.workspace_max_x - self.workspace_min_x),
-                                            (self.workspace_max_y - self.workspace_min_y), linewidth=1, edgecolor='gray', facecolor='none')
-            plt.grid(True)
-            plt.axis("equal")
             ax = plt.gca()
+            ax.plot(start[0], start[1], "ob", label='local start')
+            ax.plot(goal[0], goal[1], "xb", label='local goal')
+            current_map = patches.Rectangle((self.workspace_min_x, self.workspace_min_y), (self.workspace_max_x - self.workspace_min_x),
+                                            (self.workspace_max_y - self.workspace_min_y), linewidth=1, edgecolor='gray', facecolor='none', label='current map')
             ax.add_patch(current_map)
             for (ox, oy, size) in self.obstacle_list:
                 ax.add_collection(EllipseCollection(widths=size * 2, heights=size * 2, angles=0,
@@ -113,18 +113,21 @@ class RRTStar(Planner):
                     self.node_list.append(new_node)
                     self.rewire(new_node, near_indexes)
 
-            if (not search_until_max_iter) and new_node:  # check reaching the goal
+            if ((not search_until_max_iter) or (i > self.max_iter_after_reach)) and new_node:  # check reaching the goal
                 last_index = self.search_best_goal_node()
                 if last_index:
-                    print('here - last index')
+                    # print('here - last index')
                     final_course = self.generate_final_course(last_index)
+                    self.cost = self.node_list[-1].cost
                     if show_animation:
-                        print("show map plot")
+                        # print("show map plot")
+                        ax = plt.gca()
                         for node in self.node_list:
                             if node.parent:
-                                plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.125)
-                        plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
-                        plt.pause(0.001)
+                                ax.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.06125)
+                        ax.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r", label='final course')
+                        ax.legend()
+                        # plt.pause(0.001)
                         # plt.clf()
                         # # plt.gca().invert_yaxis()
                         #
@@ -141,28 +144,32 @@ class RRTStar(Planner):
                         # self.draw_graph(rnd)
                     return final_course
 
-        print("reached max iteration")
+        # print("reached max iteration")
 
         last_index = self.search_best_goal_node()
         if last_index:
             final_course = self.generate_final_course(last_index)
+            self.cost = self.node_list[-1].cost
 
             if show_animation:
-                print("show map plot")
+                # print("show map plot")
+                ax = plt.gca()
                 for node in self.node_list:
                     if node.parent:
-                        plt.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.25)
+                        ax.plot(np.array(node.path_x), np.array(node.path_y), "-g", alpha=0.06125)
                 if len(final_course) > 0:
-                    plt.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r")
-                plt.pause(0.001)
+                    ax.plot(np.array(final_course[:, 0]), np.array(final_course[:, 1]), "-r", label='final course')
+                ax.legend()
+                # plt.pause(0.001)
 
             return final_course
         else:
-            print("Cannot find path")
+            print("RRT Star Cannot find path")
+            self.cost = 0
 
         if show_animation:
-            print("show map plot")
-            plt.pause(0.001)
+            print("RRT Star Cannot find path")
+            # plt.pause(0.001)
             # plt.pause(0.01)
             # plt.show()
             # self.plot_start_goal_arrow()
@@ -178,17 +185,16 @@ class RRTStar(Planner):
             plt.plot(rnd.x, rnd.y, "^k")
         for node in self.node_list:
             if node.parent:
-                plt.plot(node.path_x, node.path_y, "-g", alpha=0.25)
+                plt.plot(node.path_x, node.path_y, "-g", alpha=0.06125)
 
         for (ox, oy, size) in self.obstacle_list:
             plt.plot(ox, oy, "ok", ms=size)
 
-        plt.plot(self.start.x, self.start.y, "xr")
-        plt.plot(self.end.x, self.end.y, "xr")
-        plt.axis([-2, 15, -2, 15])
+        plt.plot(self.start.x, self.start.y, "xb")
+        plt.plot(self.end.x, self.end.y, "xb")
         plt.grid(True)
         self.plot_start_goal_arrow()
-        plt.pause(0.01)
+        # plt.pause(0.01)
 
     def plot_start_goal_arrow(self):  # pragma: no cover
         plot_arrow(self.start.x, self.start.y, self.start.yaw)
@@ -260,7 +266,7 @@ class RRTStar(Planner):
         return None
 
     def generate_final_course(self, goal_index) -> np.ndarray:
-        print("final")
+        # print("final")
         quaternion = angle_to_quaternion(self.end.yaw)
         path = [(self.end.x, self.end.y, 0.0) + tuple(quaternion)]
         node = self.node_list[goal_index]

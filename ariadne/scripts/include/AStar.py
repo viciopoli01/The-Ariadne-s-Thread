@@ -18,6 +18,7 @@ class AStar(Planner):
         self.obstacle_map = None
         self.x_width, self.y_width = 0, 0
         self.motion = self.get_motion_model()
+        self.cost = 0
 
         self.x_center = []
         self.y_center = []
@@ -178,6 +179,11 @@ class AStar(Planner):
                         open_set[n_id] = node
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
+        cost_node_index = goal_node.parent_index
+        self.cost = goal_node.cost
+        while cost_node_index >= 0:
+            self.cost += closed_set[cost_node_index].cost
+            cost_node_index = closed_set[cost_node_index].parent_index
 
         reversed_path = np.array([rx, ry, np.zeros(len(rx))]).T
         # print(reversed_path)

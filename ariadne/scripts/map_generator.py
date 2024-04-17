@@ -16,7 +16,7 @@ import math
 from cv_bridge import CvBridge
 
 
-class MapGenerator():
+class MapGenerator:
 
     def __init__(self):
         rospy.loginfo('Map generator node started')
