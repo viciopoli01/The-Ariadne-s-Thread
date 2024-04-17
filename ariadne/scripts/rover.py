@@ -209,6 +209,7 @@ class Rover:
             plt.plot(rotated_goal[0], rotated_goal[1], 'go')
             plt.plot(rotated_pose[0], rotated_pose[1], 'mo')
             plt.pause(0.01)
+            plt.show()
 
             rospy.loginfo(f'finished rrt, final pose: {path[-1]}')
             if path.any():

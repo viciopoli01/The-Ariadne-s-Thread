@@ -35,7 +35,7 @@ class Controller():
 
         self.last_time=None
 
-        self.x_vel = 2.5
+        self.x_vel = 3.5
 
         # publisher cmd_vel messages
         self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
@@ -85,17 +85,20 @@ class Controller():
             self.previous_error = 0
             self.stop()
     
+    def get_closest_point(self, current_pose):
+        distances = [np.linalg.norm(np.array(current_pose[:2]) - np.array(p[:2])) for p in self.path]
+        prop = np.argmin(distances)
+        self.next_goal = prop if prop > self.next_goal else self.next_goal
+
     def control(self, current_pose, goal_pose, next_goal_pose, current_time):
         self.moving = True
 
-        if np.linalg.norm(np.array(current_pose[:2]) - np.array(goal_pose[:2])) < 0.1:
-            rospy.loginfo('Next goal')
-            if self.next_goal >= len(self.path):
-                self.stop()
-                rospy.loginfo('Goal reached')
-                self.goal_reached = True
-                return
-            self.next_goal += 1
+        self.get_closest_point(current_pose)
+        if np.linalg.norm(np.array(current_pose[:2]) - np.array(self.path[-1][:2])) < 1. or self.next_goal >= len(self.path):
+            self.stop()
+            rospy.loginfo('Goal reached')
+            self.goal_reached = True
+            return
         
         if self.last_time is None:
             self.last_time = current_time
@@ -130,7 +133,7 @@ class Controller():
         elif output < -10.0:
             output = -10.0
 
-        self.cmd_vel.linear.x = np.clip(100. * distance_to_waypoint * np.cos(error), 0, self.x_vel)
+        self.cmd_vel.linear.x = self.x_vel
         self.cmd_vel.angular.z = output
 
         # anti-windup

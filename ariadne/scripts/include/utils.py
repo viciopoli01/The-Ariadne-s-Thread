@@ -79,19 +79,19 @@ def msg2pose(msg):
     T[:3, :3] = rot.as_matrix()
 
     # rotate the pose frame by 180 degrees along the z-axis
-    T_rot = np.array([[0, -1., 0, 0],
-                      [1., 0, 0, 0],
+    T_rot = np.array([[-1., 0., 0, 0],
+                      [0., -1., 0, 0],
                       [0, 0, 1., 0],
                       [0, 0, 0, 1.]])
     T = T @ T_rot
-    T = np.linalg.inv(T)
+    # T = np.linalg.inv(T)
 
     # extract the position and yaw angle
     p = T[:3, 3]
     yaw = np.arctan2(T[1, 0], T[0, 0])
 
     # limit the yaw angle to [-pi, pi]
-    # yaw+=np.pi/2.
+    yaw+=np.pi/2.
     yaw = np.arctan2(np.sin(yaw), np.cos(yaw))
 
     # print('yaw', np.rad2deg(yaw))
