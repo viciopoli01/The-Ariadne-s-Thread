@@ -29,7 +29,7 @@ class RRTStar(Planner):
         self.workspace_min_y = -10.0
         self.workspace_max_y = 10.0
         self.goal_sample_rate = 2
-        self.max_iter = 200
+        self.max_iter = 1000
         self.robot_radius = 0.0
         self.curvature = curvature
         self.goal_yaw_th = np.deg2rad(1.0)

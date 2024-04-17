@@ -29,13 +29,13 @@ class Controller():
     def __init__(self):
         self.kp = 20.
         self.kd = 7.
-        self.ki = 0.
+        self.ki = 4.
         self.previous_error = 0.0
         self.integral = 0
 
         self.last_time=None
 
-        self.x_vel = 2.
+        self.x_vel = 2.5
 
         # publisher cmd_vel messages
         self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
@@ -56,7 +56,7 @@ class Controller():
         self.path = []
         self.pose = None
 
-        self.next_goal = 0
+        self.next_goal = 1
 
         self.goal_reached = False
         # 1 Hz
@@ -72,8 +72,8 @@ class Controller():
     def odometry_callback(self, msg):
         self.pose = msg2pose(msg)
 
-        if len(self.path)>0:
-            self.control(self.pose, self.path[self.next_goal], rospy.get_time())
+        if len(self.path)>0 and self.next_goal < len(self.path) - 1:
+            self.control(self.pose, self.path[self.next_goal],self.path[self.next_goal+1], rospy.get_time())
             
     def path_callback(self, msg):
         if not self.moving:
@@ -85,7 +85,7 @@ class Controller():
             self.previous_error = 0
             self.stop()
     
-    def control(self, current_pose, goal_pose, current_time):
+    def control(self, current_pose, goal_pose, next_goal_pose, current_time):
         self.moving = True
 
         if np.linalg.norm(np.array(current_pose[:2]) - np.array(goal_pose[:2])) < 0.1:
@@ -103,21 +103,20 @@ class Controller():
 
         dt = current_time - self.last_time
 
-        error_theta = goal_pose[2] - current_pose[2]
+        distance_to_waypoint = np.linalg.norm(np.array(current_pose[:2]) - np.array(goal_pose[:2]))
+        
+        theta_target = np.arctan2(next_goal_pose[1] - goal_pose[1], next_goal_pose[0] - goal_pose[0])
+        
+        error_theta = theta_target - current_pose[2]
 
+        rospy.loginfo('Step: {}'.format(self.next_goal))
         rospy.loginfo('Goal theta: {}'.format(goal_pose[2]))
         rospy.loginfo('Current theta: {}'.format(current_pose[2]))
         rospy.loginfo('Error theta: {}'.format(error_theta))
+        rospy.loginfo('Distance to waypoint: {}'.format(distance_to_waypoint))
         
         error = np.arctan2(np.sin(error_theta), 
                            np.cos(error_theta))
-
-        # limit the yaw angle to [-pi, pi]
-
-        if error > np.pi:
-            error -= 2 * np.pi
-        elif error < -np.pi:
-            error += 2 * np.pi
 
         rospy.loginfo('Error: {}'.format(error))
 
@@ -131,7 +130,7 @@ class Controller():
         elif output < -10.0:
             output = -10.0
 
-        self.cmd_vel.linear.x = self.x_vel
+        self.cmd_vel.linear.x = np.clip(100. * distance_to_waypoint * np.cos(error), 0, self.x_vel)
         self.cmd_vel.angular.z = output
 
         # anti-windup
@@ -146,7 +145,7 @@ class Controller():
         # rospy.loginfo('Sending cmd_vel: {}'.format(cmd_vel))
         self.cmd_vel_publisher.publish(self.cmd_vel)
 
-        # rospy.sleep(.5)
+        # rospy.sleep(.05)
 
 
     # on node shutdown

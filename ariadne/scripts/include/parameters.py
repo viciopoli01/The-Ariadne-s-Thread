@@ -1,2 +1,2 @@
 planner_algo = 'RRT'
-curvature = 1./3.5
+curvature = 1./4.5

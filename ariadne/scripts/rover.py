@@ -78,6 +78,11 @@ class Rover:
         # 1 Hz
         rospy.Timer(rospy.Duration(1.), lambda event: self.move_to_the_goal_publisher.publish(Bool(self.heli_move)))
 
+
+        # odometry publisher
+        self.odom_publisher = rospy.Publisher('/curiosity_mars_rover/odom_1', Odometry, queue_size=10)
+
+
     def dynamic_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
         print(planner_algo)
@@ -109,12 +114,21 @@ class Rover:
             self.obstacles_radius_list = msg.obstacles_radius_list
 
             self.goal = np.array([msg.goal.x, msg.goal.y, msg.goal.z])
-            if np.linalg.norm(self.pose - self.goal) < 2:
+            if np.linalg.norm(self.pose[:2] - self.goal[:2]) < 1.:
                 rospy.loginfo('Final Goal is reached!')
                 plt.pause(10)
                 return
             frame_width = 75
             frame_height = 35
+
+
+            # path = self.planner.plan(self.pose, self.goal, [obs2array(o) for o in self.map.obstacles_coordinate_list],
+            #                          self.map.obstacles_radius_list, show_animation=True,
+            #                          map_bounds=[int( - 50), 
+            #                                     int(- 50), 
+            #                                     int(+ 50),
+            #                                     int(+ 50)])
+
 
             obstacles = np.array([obs2array(o) for o in self.map.obstacles_coordinate_list])
             x_center = obstacles[:, 0]
@@ -129,20 +143,27 @@ class Rover:
             # rotation from pose to goal
             yaw = np.arctan2(self.goal[1] - self.pose[1], self.goal[0] - self.pose[0])
             # rotation matrix
-            R = Rotation.from_euler('z', yaw).as_matrix()
+            R = Rotation.from_euler('z', yaw).as_matrix().T 
             R_2d = R[:2, :2]
+
+            print(f"R: {R_2d}")
             # rotate the obstacles
             rotated_obs = np.dot(R_2d, obstacles[:, :2].T).T
 
             # rotate the goal
             rotated_goal = np.dot(R_2d, self.goal[:2])
-            rotated_goal = np.array([rotated_goal[0], rotated_goal[1], self.goal[2]])
+            rotated_goal = np.array([rotated_goal[0], rotated_goal[1], self.goal[2]-yaw])
+            
+            # rotate the current pose
+            rotated_pose = np.dot(R_2d, self.pose[:2])
+            rotated_pose = np.array([rotated_pose[0], rotated_pose[1], self.pose[2]-yaw])
 
             x_min = np.min(rotated_obs[:, 0])
             x_max = np.max(rotated_obs[:, 0])
             y_min = np.min(rotated_obs[:, 1])
             y_max = np.max(rotated_obs[:, 1])
-            # include the goal and the frame in the frame
+
+            # include the goal and the self.pose in the frame
             x_min = min(x_min, rotated_goal[0])
             x_max = max(x_max, rotated_goal[0])
             y_min = min(y_min, rotated_goal[1])
@@ -153,20 +174,41 @@ class Rover:
             y_min = min(y_min, self.pose[1])
             y_max = max(y_max, self.pose[1])
 
-            path = self.planner.plan(self.pose, rotated_goal, rotated_obs,
-                                     self.map.obstacles_radius_list, show_animation=True,
+            path = self.planner.plan(rotated_pose, rotated_goal, rotated_obs,
+                                     self.map.obstacles_radius_list, show_animation=False,
                                      map_bounds=[int(x_min - 5), 
                                                 int(y_min - 5), 
                                                 int(x_max + 5),
                                                 int(y_max + 5)])
-            
-            print(path.shape)
-            # derotate the path
-            path = np.dot(R_2d.T, path.T).T
 
             if len(path) < 1:
                 rospy.logwarn('Goal seems to be unreachable or the planner failed to find a path')
                 return
+
+            # derotate the path. 
+            # the path is N x 7, where N is the number of waypoints
+            # and the 7 columns are x, y, z, qx, qy, qz, qw
+            for i in range(len(path)):
+                path[i][0], path[i][1] = np.dot(R_2d.T, path[i][:2])
+                R_p = Rotation.from_quat([path[i][3], path[i][4], path[i][5], path[i][6]])
+                # derotate the orientation
+                R_p = R_p * Rotation.from_euler('z', yaw)
+                q = R_p.as_quat()
+                path[i][3] = q[0]
+                path[i][4] = q[1]
+                path[i][5] = q[2]
+                path[i][6] = q[3]
+
+            # plot the path
+            path = np.array(path)
+            # print the first point as a green star
+            plt.plot(path[0, 0], path[0, 1], 'g*')
+            # scatter the path waypoints
+            plt.scatter(path[:, 0], path[:, 1], c='r', s=10)
+            plt.plot(rotated_obs[:, 0], rotated_obs[:, 1], 'bo')
+            plt.plot(rotated_goal[0], rotated_goal[1], 'go')
+            plt.plot(rotated_pose[0], rotated_pose[1], 'mo')
+            plt.pause(0.01)
 
             rospy.loginfo(f'finished rrt, final pose: {path[-1]}')
             if path.any():
@@ -239,12 +281,12 @@ class Rover:
             pose = PoseStamped()
             pose.pose.position.x = p[0]
             pose.pose.position.y = p[1]
-            pose.pose.position.z = 0.0
+            pose.pose.position.z = p[2]
             # orientation
-            pose.pose.orientation.x = 0.0
-            pose.pose.orientation.y = 0.0
-            pose.pose.orientation.z = 0.0
-            pose.pose.orientation.w = p[2]
+            pose.pose.orientation.x = p[3]
+            pose.pose.orientation.y = p[4]
+            pose.pose.orientation.z = p[5]
+            pose.pose.orientation.w = p[6]
             path_msg.poses.append(pose)
         self.path_publisher.publish(path_msg)
 
@@ -272,6 +314,18 @@ class Rover:
     def odom_callback(self, msg):
         self.pose = msg2pose(msg)
         
+        # self.pose to odom_publisher
+        new_msg = Odometry()
+        new_msg.header = msg.header
+        new_msg.pose.pose.position.x = self.pose[0]
+        new_msg.pose.pose.position.y = self.pose[1]
+        new_msg.pose.pose.position.z = 0.0
+        yaw_2_quat = tf.transformations.quaternion_from_euler(0, 0, self.pose[2])
+        new_msg.pose.pose.orientation.x = yaw_2_quat[0]
+        new_msg.pose.pose.orientation.y = yaw_2_quat[1]
+        new_msg.pose.pose.orientation.z = yaw_2_quat[2]
+        new_msg.pose.pose.orientation.w = yaw_2_quat[3]
+        self.odom_publisher.publish(new_msg)
 
     def goal_reached_callback(self, msg):
         if msg.data:

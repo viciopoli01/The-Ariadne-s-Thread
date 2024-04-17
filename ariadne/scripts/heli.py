@@ -106,7 +106,7 @@ class Heli():
 
         heli_pose2d = np.array([self.pose.pose.position.x, self.pose.pose.position.y, 0.])
         # make sure the heli is not far away from the rover
-        if np.linalg.norm(self.rover_pose[:2] - heli_pose2d[:2]) > 60:
+        if np.linalg.norm(self.rover_pose[:2] - heli_pose2d[:2]) > 60 or np.linalg.norm(self.goal[:2] - heli_pose2d[:2]) < 1.:
             # the heli is too far away from the rover
             rospy.loginfo('Heli is too far away from the rover, not moving anymore')
             self.goal_reached_publisher.publish(Bool(True))

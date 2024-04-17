@@ -76,6 +76,7 @@ class MapGenerator():
             self.spawn_obstacle(pose, size, count)
             count += 1
 
+        self.add_goal(self.goal)
         rospy.loginfo('Map generated')
 
 
@@ -184,6 +185,53 @@ class MapGenerator():
             resp = spawn_model(f"cylinder_obstacle_{id}", obstacle_sdf, "", pose, "world")
         except rospy.ServiceException as e:
             rospy.logerr("Spawn service call failed: %s", e)
+
+    def add_goal(self, goal):
+        rospy.wait_for_service('/gazebo/spawn_sdf_model')
+        try:
+            spawn_model = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+            
+            # Define a green cube SDF with provided goal pose
+            cube_sdf = f"""
+            <?xml version="1.0"?>
+            <sdf version="1.5">
+            <model name="goal">
+                <pose>{goal[0]} {goal[1]} 0. 0 0 0</pose>
+                <link name="link">
+                <collision name="collision">
+                    <geometry>
+                    <box>
+                        <size>1 1 1</size>
+                    </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                    <box>
+                        <size>1 1 1</size>
+                    </box>
+                    <material>
+                        <script>
+                        <uri>file://media/materials/scripts/gazebo.material</uri>
+                        <name>Gazebo/Green</name>
+                        </script>
+                    </material>
+                    </geometry>
+                </visual>
+                </link>
+            </model>
+            </sdf>
+            """
+            pose = Pose()
+            pose.position.x = goal[0]
+            pose.position.y = goal[1]
+            pose.position.z = 0.5
+
+            # Spawn the obstacle
+            resp = spawn_model(f"goal_gaz", cube_sdf, "", pose, "world")
+        except rospy.ServiceException as e:
+            rospy.logerr("Spawn service call failed: %s", e)
+
 
 
 
