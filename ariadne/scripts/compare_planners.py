@@ -5,9 +5,9 @@ import math
 import time
 from typing import Tuple
 import matplotlib.pyplot as plt
-from ariadne.scripts.include.RRT import RRT
-from ariadne.scripts.include.RRTStar import RRTStar
-from ariadne.scripts.include.AStar import AStar
+from include.RRT import RRT
+from include.RRTStar import RRTStar
+from include.AStar import AStar
 import matplotlib.patches as patches
 import pandas as pd
 
@@ -356,8 +356,8 @@ def main():
     results_df['global_rrt_time'] = global_rrt_time
     results_df['global_rrt_star_time'] = global_rrt_star_time
     results_df['global_astar_time'] = global_astar_time
-    fail_count_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/fail_count_50_map.csv', index=False)
-    results_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/results_50_map.csv', index=False)
+    fail_count_df.to_csv(path_or_buf=f'/ariadne/scripts/compare_approach/fail_count_50_map.csv', index=False)
+    results_df.to_csv(path_or_buf=f'/ariadne/scripts/compare_approach/results_50_map.csv', index=False)
     valid_local_rrt_indicies = np.where(results_df.local_rrt_cost > 0)[0]
     valid_local_rrt_star_indicies = np.where(results_df.local_rrt_star_cost > 0)[0]
     valid_local_astar_indicies = np.where(results_df.local_astar_cost > 0)[0]
