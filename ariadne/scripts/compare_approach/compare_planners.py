@@ -11,7 +11,8 @@ from ariadne.scripts.include.AStar import AStar
 import matplotlib.patches as patches
 import pandas as pd
 
-np.random.seed(52)
+epsilon = 1e-4
+np.random.seed(22)
 map_width = 1000
 map_height = 1000
 num_obstacles = 100
@@ -91,14 +92,13 @@ def find_temporary_goal(current, final, frame_width, frame_height, obstacles):
     return np.append(temp_goal, final[2])
 
 
-def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float, float, float, float]:
+def plan_with_random_map_global(global_goal_pose, obstacles) -> Tuple[bool, bool, bool, float, float, float, float, float, float]:
     rrt_planner = RRT()
     rrt_start_planner = RRTStar()
     astar_planner = AStar()
     rrt_planner.max_iter_after_reach = 80
     rrt_start_planner.max_iter_after_reach = 40
 
-    global_goal_pose, obstacles = generate_map(map_width, map_height, num_obstacles, rover_radius, max_obstacle_radius, dupin_curvature)
     current_pose = np.array([0, 0, 0])
     local_goal_pose = find_temporary_goal(current_pose[:2], global_goal_pose, helicopter_servey_width, helicopter_servey_height, obstacles)
     rrt_cost = 0
@@ -160,25 +160,26 @@ def plan_with_random_map_global() -> Tuple[bool, bool, bool, float, float, float
         astar_time = -1
         print(f'a star failed to find path')
 
-    print(f'finished planning global map')
+    print(f'--------finished planning global map---------')
     print(f'did rrt fail? {rrt_failed}')
     print(f'did rrt star fail? {rrt_star_failed}')
     print(f'did a star fail? {astar_failed}')
     print(f'rrt cost: {rrt_cost}')
     print(f'rrt star cost: {rrt_star_cost}')
     print(f'a star cost: {astar_cost}')
+    print(f'rrt time: {rrt_time}')
+    print(f'rrt star time: {rrt_star_time}')
+    print(f'a star time: {astar_time}')
 
     return rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time
 
 
-def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, float, float, float, float]:
+def plan_with_random_map_with_heli(global_goal_pose, obstacles) -> Tuple[bool, bool, bool, float, float, float, float, float, float]:
     rrt_planner = RRT()
     rrt_start_planner = RRTStar()
     astar_planner = AStar()
     rrt_planner.max_iter_after_reach = 20
     rrt_start_planner.max_iter_after_reach = 10
-
-    global_goal_pose, obstacles = generate_map(map_width, map_height, num_obstacles, rover_radius, max_obstacle_radius, dupin_curvature)
     current_pose = np.array([0, 0, 0])
     local_goal_pose = find_temporary_goal(current_pose[:2], global_goal_pose, helicopter_servey_width, helicopter_servey_height, obstacles)
     rrt_cost = 0
@@ -200,7 +201,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
     rrt_star_time = 0
     astar_time = 0
 
-    while np.any(local_goal_pose != global_goal_pose):
+    while np.any((local_goal_pose[:2] - global_goal_pose[:2]) > 1.0):
         if not rrt_failed:
             t = time.time()
             rrt_course = rrt_planner.plan(current_pose, local_goal_pose, list(obstacles[:, :2]), list(obstacles[:, 2]), show_animation=False,
@@ -258,7 +259,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
         # plt.pause(0.001)
         local_map_number += 1
 
-    print(f'finished planning global map with {local_map_number} local maps')
+    print(f'--------finished planning global map with helicopter and {local_map_number} local maps---------')
     print(f'did rrt fail? {rrt_failed}')
     print(f'did rrt star fail? {rrt_star_failed}')
     print(f'did a star fail? {astar_failed}')
@@ -272,7 +273,7 @@ def plan_with_random_map_with_heli() -> Tuple[bool, bool, bool, float, float, fl
 
 def main():
     # Run for 100 randomly generated maps
-    n_random_maps = 5
+    n_random_maps = 50
     local_rrt_failed = 0
     local_rrt_star_failed = 0
     local_astar_failed = 0
@@ -293,7 +294,8 @@ def main():
     global_astar_time = [-1] * n_random_maps
 
     for i in range(n_random_maps):
-        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_with_heli()
+        global_goal_pose, obstacles = generate_map(map_width, map_height, num_obstacles, rover_radius, max_obstacle_radius, dupin_curvature)
+        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_with_heli(global_goal_pose, obstacles)
         local_rrt_failed += rrt_failed
         local_rrt_star_failed += rrt_star_failed
         local_astar_failed += astar_failed
@@ -303,7 +305,7 @@ def main():
         local_rrt_time[i] = rrt_time
         local_rrt_star_time[i] = rrt_star_time
         local_astar_time[i] = astar_time
-        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_global()
+        rrt_failed, rrt_star_failed, astar_failed, rrt_cost, rrt_star_cost, astar_cost, rrt_time, rrt_star_time, astar_time = plan_with_random_map_global(global_goal_pose, obstacles)
         global_rrt_failed += rrt_failed
         global_rrt_star_failed += rrt_star_failed
         global_astar_failed += astar_failed
@@ -354,24 +356,24 @@ def main():
     results_df['global_rrt_time'] = global_rrt_time
     results_df['global_rrt_star_time'] = global_rrt_star_time
     results_df['global_astar_time'] = global_astar_time
-    fail_count_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/fail_count.csv', index=False)
-    results_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/results.csv', index=False)
+    fail_count_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/fail_count_50_map.csv', index=False)
+    results_df.to_csv(path_or_buf=f'/home/justmohsen/ariadne_ws/src/The-Ariadne-s-Thread/ariadne/scripts/compare_approach/results_50_map.csv', index=False)
     valid_local_rrt_indicies = np.where(results_df.local_rrt_cost > 0)[0]
     valid_local_rrt_star_indicies = np.where(results_df.local_rrt_star_cost > 0)[0]
     valid_local_astar_indicies = np.where(results_df.local_astar_cost > 0)[0]
     valid_global_rrt_indicies = np.where(results_df.global_rrt_cost > 0)[0]
     valid_global_rrt_star_indicies = np.where(results_df.global_rrt_star_cost > 0)[0]
     valid_global_astar_indicies = np.where(results_df.global_astar_cost > 0)[0]
-    plt.hist(results_df.local_rrt_cost[valid_local_rrt_indicies], label='local rrt', alpha=0.5)
-    plt.hist(results_df.local_rrt_star_cost[valid_local_rrt_star_indicies], label='local rrt star', alpha=0.5)
-    plt.hist(results_df.local_astar_cost[valid_local_astar_indicies], label='local a star', alpha=0.5)
-    plt.hist(results_df.global_rrt_cost[valid_global_rrt_indicies], label='global rrt', alpha=0.5)
-    plt.hist(results_df.global_rrt_star_cost[valid_global_rrt_star_indicies], label='global rrt star', alpha=0.5)
-    plt.hist(results_df.global_astar_cost[valid_global_astar_indicies], label='global a star', alpha=0.5)
-    plt.legend()
+    plt.hist(results_df.local_rrt_cost[valid_local_rrt_indicies], label='local rrt', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
+    plt.hist(results_df.local_rrt_star_cost[valid_local_rrt_star_indicies], label='local rrt star', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
+    plt.hist(results_df.local_astar_cost[valid_local_astar_indicies], label='local a star', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
+    plt.hist(results_df.global_rrt_cost[valid_global_rrt_indicies], label='global rrt', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
+    plt.hist(results_df.global_rrt_star_cost[valid_global_rrt_star_indicies], label='global rrt star', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
+    plt.hist(results_df.global_astar_cost[valid_global_astar_indicies], label='global a star', alpha=0.5, bins=[0, 250, 500, 750, 1000, 1250, 1500, 1750])
     plt.xlabel('distance in meters')
     plt.ylabel('count of random maps')
     plt.title('Rover Distance Cost with Different Planners')
+    plt.legend()
     plt.show()
     plt.hist(results_df.local_rrt_time[valid_local_rrt_indicies], label='local rrt', alpha=0.5)
     plt.hist(results_df.local_rrt_star_time[valid_local_rrt_star_indicies], label='local rrt star', alpha=0.5)
@@ -379,10 +381,64 @@ def main():
     plt.hist(results_df.global_rrt_time[valid_global_rrt_indicies], label='global rrt', alpha=0.5)
     plt.hist(results_df.global_rrt_star_time[valid_global_rrt_star_indicies], label='global rrt star', alpha=0.5)
     plt.hist(results_df.global_astar_time[valid_global_astar_indicies], label='global a star', alpha=0.5)
-    plt.legend()
     plt.xlabel('running time in seconds')
     plt.ylabel('count of random maps')
     plt.title('Planner running time')
+    plt.legend()
+    plt.show()
+
+    #############
+    valid_local_rrt_indicies = np.where(results_df.local_rrt_cost > 0)[0]
+    valid_local_rrt_star_indicies = np.where(results_df.local_rrt_star_cost > 0)[0]
+    valid_local_astar_indicies = np.where(results_df.local_astar_cost > 0)[0]
+    valid_global_rrt_indicies = np.where(results_df.global_rrt_cost > 0)[0]
+    valid_global_rrt_star_indicies = np.where(results_df.global_rrt_star_cost > 0)[0]
+    valid_global_astar_indicies = np.where(results_df.global_astar_cost > 0)[0]
+    # COST
+    local_rrt_cost = results_df.local_rrt_cost.iloc[valid_local_rrt_indicies]
+    local_rrt_star_cost = results_df.local_rrt_star_cost.iloc[valid_local_rrt_star_indicies]
+    local_astar_cost = results_df.local_astar_cost.iloc[valid_local_astar_indicies]
+    global_rrt_cost = results_df.global_rrt_cost.iloc[valid_global_rrt_indicies]
+    global_rrt_star_cost =results_df.global_rrt_star_cost.iloc[valid_global_rrt_star_indicies]
+    global_astar_cost = results_df.global_astar_cost.iloc[valid_global_astar_indicies]
+    bins = [0, 250, 500, 750, 1000, 1250, 1500, 1750]
+    min_len = np.min([len(local_rrt_cost), len(local_rrt_star_cost), len(local_astar_cost)])
+    plt.hist([local_rrt_cost[:min_len], local_rrt_star_cost[:min_len], local_astar_cost[:min_len]], bins, stacked=True, density=True, edgecolor = "black", label=['rrt', 'rrt star', 'astar'])
+    plt.xlabel('distance in meters')
+    plt.ylabel('density of random maps')
+    plt.title('Rover Distance Cost for Local Planners - 500 random maps')
+    plt.legend()
+    plt.show()
+    bins = [0, 50, 100, 150, 200, 250, 300, 350, 400]
+    min_len = np.min([len(global_rrt_cost), len(global_rrt_star_cost), len(global_astar_cost)])
+    plt.hist([global_rrt_cost[:min_len], global_rrt_star_cost[:min_len], global_astar_cost[:min_len]], bins, stacked=True, density=True, edgecolor = "black", label=['rrt', 'rrt star', 'astar'])
+    plt.xlabel('distance in meters')
+    plt.ylabel('density of random maps')
+    plt.title('Rover Distance Cost for Global Planners - 500 random maps')
+    plt.legend()
+    plt.show()
+    # TIME
+    local_rrt_time = results_df.local_rrt_time.iloc[valid_local_rrt_indicies]
+    local_rrt_star_time = results_df.local_rrt_star_time.iloc[valid_local_rrt_star_indicies]
+    local_astar_time = results_df.local_astar_time.iloc[valid_local_astar_indicies]
+    global_rrt_time = results_df.global_rrt_time.iloc[valid_global_rrt_indicies]
+    global_rrt_star_time =results_df.global_rrt_star_time.iloc[valid_global_rrt_star_indicies]
+    global_astar_time = results_df.global_astar_time.iloc[valid_global_astar_indicies]
+    bins = [0, 5, 10, 15, 20, 25, 30, 35, 40]
+    min_len = np.min([len(local_rrt_time), len(local_rrt_star_time), len(local_astar_time)])
+    plt.hist([local_rrt_time[:min_len], local_rrt_star_time[:min_len], local_astar_time[:min_len]], bins, stacked=True, density=True, edgecolor = "black", label=['rrt', 'rrt star', 'astar'])
+    plt.xlabel('time in seconds')
+    plt.ylabel('density of random maps')
+    plt.title('Processing Time for Local Planners - 500 random maps')
+    plt.legend()
+    plt.show()
+    bins = [0, 5, 10, 15, 20, 25]
+    min_len = np.min([len(global_rrt_time), len(global_rrt_star_time), len(global_astar_time)])
+    plt.hist([global_rrt_time[:min_len], global_rrt_star_time[:min_len], global_astar_time[:min_len]], bins, stacked=True, density=True, edgecolor = "black", label=['rrt', 'rrt star', 'astar'])
+    plt.xlabel('time in seconds')
+    plt.ylabel('density of random maps')
+    plt.title('Processing Time for Global Planners - 500 random maps')
+    plt.legend()
     plt.show()
 
 if __name__ == '__main__':

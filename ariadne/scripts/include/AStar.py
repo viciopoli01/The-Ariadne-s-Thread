@@ -11,7 +11,7 @@ animation = True
 class AStar(Planner):
     def __init__(self, config=None):
         super(AStar, self).__init__(config)
-        self.resolution = 7.0
+        self.resolution = 5.0
         self.rr = 1.3
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
@@ -146,7 +146,7 @@ class AStar(Planner):
             #         plt.pause(0.001)
 
             if current.x == goal_node.x and current.y == goal_node.y:
-                print("Find goal")
+                # print("Find goal")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 break
@@ -295,8 +295,9 @@ class AStar(Planner):
             return False
 
         # collision check
-        if self.obstacle_map[int(node.x)][int(node.y)]:
-            return False
+        if (len(self.obstacle_map) >= int(node.x)) and len(self.obstacle_map[int(node.x)]) >= int(node.y):
+            if self.obstacle_map[int(node.x)][int(node.y)]:
+                return False
 
         return True
 

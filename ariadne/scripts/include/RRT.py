@@ -159,7 +159,7 @@ class RRT(Planner):
             return final_course
         else:
             print("RRT Cannot find path")
-            self.cost = 0
+            self.cost = -1
 
         if show_animation:
             print("show map plot")
