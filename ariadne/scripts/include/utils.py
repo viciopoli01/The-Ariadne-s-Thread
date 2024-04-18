@@ -26,7 +26,7 @@ def map_updater(_map, new_obs, new_radius):
 def obs2array(_obs):
     return np.array([_obs.x, _obs.y, _obs.z])
 
-def check_obs_exists(_map, obs: np.ndarray, threshold=2):
+def check_obs_exists(_map, obs: np.ndarray, threshold=0.5):
     if any(np.linalg.norm(obs - obs2array(o)) < threshold for o in _map.obstacles_coordinate_list):
         return True
     return False
@@ -109,9 +109,7 @@ def msg2T(msg):
     qz = pose.orientation.z
     qw = pose.orientation.w
     rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
+    
     T[:3, :3] = rot.as_matrix()
 
-    T[:3, :3] = np.linalg.inv(rot.as_matrix())
-
-    T[:3, 3] = -np.linalg.inv(rot.as_matrix()) @ (T[:3, 3])
     return T

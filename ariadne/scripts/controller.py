@@ -94,11 +94,20 @@ class Controller():
         self.moving = True
 
         self.get_closest_point(current_pose)
-        if np.linalg.norm(np.array(current_pose[:2]) - np.array(self.path[-1][:2])) < 1. or self.next_goal >= len(self.path):
-            self.stop()
-            rospy.loginfo('Goal reached')
-            self.goal_reached = True
-            return
+        # if np.linalg.norm(np.array(current_pose[:2]) - np.array(self.path[-1][:2])) < 1. or self.next_goal >= len(self.path):
+        #     self.stop()
+        #     rospy.loginfo('Goal reached')
+        #     self.goal_reached = True
+        #     return
+        
+        if np.linalg.norm(np.array(current_pose[:2]) - np.array(goal_pose[:2])) < 0.1:
+            rospy.loginfo('Next goal')
+            if self.next_goal >= len(self.path):
+                self.stop()
+                rospy.loginfo('Goal reached')
+                self.goal_reached = True
+                return
+            self.next_goal += 1
         
         if self.last_time is None:
             self.last_time = current_time

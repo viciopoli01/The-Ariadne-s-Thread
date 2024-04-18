@@ -16,6 +16,8 @@ import math
 from cv_bridge import CvBridge
 from gazebo_msgs.srv import SpawnModel
 
+from include.utils import msg2T
+
 class MapGenerator():
 
     def __init__(self):
@@ -66,6 +68,7 @@ class MapGenerator():
         self.obstacleList = [obs for obs in self.obstacleList if np.linalg.norm(np.array(obs[:2]) - np.array(self.goal[:2])) > 3.0]
 
         self.bridge= CvBridge()
+        self.finished_map = False
         # spawn obstacles
         count = 0
         for (ox, oy, _, _), size in zip(self.obstacleList, self.radius):
@@ -75,33 +78,17 @@ class MapGenerator():
             pose.position.z = 0
             self.spawn_obstacle(pose, size, count)
             count += 1
+        self.finished_map = True
 
         self.add_goal(self.goal)
         rospy.loginfo('Map generated')
 
 
     def heli_request(self, msg):
-        # rospy.loginfo('Received heli pose')
-        T_cw = np.eye(4)
-
-        pose = msg.pose
-        # read pose
-        T_cw[0, 3] = pose.position.x
-        T_cw[1, 3] = pose.position.y
-        T_cw[2, 3] = pose.position.z
-        # orientation
-        qx = pose.orientation.x
-        qy = pose.orientation.y
-        qz = pose.orientation.z
-        qw = pose.orientation.w
-
-        rot = Rotation.from_quat(np.array([qx, qy, qz, qw]))
-        T_cw[:3, :3] = rot.as_matrix()
-
-        T_cw[:3, :3] = np.linalg.inv(rot.as_matrix())
-      
-        T_cw[:3, 3] = -np.linalg.inv(rot.as_matrix())@ (T_cw[:3, 3])
-
+        if not self.finished_map:
+            return
+        T_wc = msg2T(msg)
+        T_cw = np.linalg.inv(T_wc)
         self.image = self.project_obstacles(T_cw)
         self.publish_image()
 
@@ -111,6 +98,7 @@ class MapGenerator():
         pts_cam = self.K @ (T_cw @ np.array(self.obstacleList).T)[:3, :]
         pts_cam /= pts_cam[2, :]
         pts_cam = pts_cam[:2, :].astype(int)
+
         # discard all the points out of the camera plane
         pts_cam_plane = (pts_cam[0] > 0) & (pts_cam[1] < self.H) & (pts_cam[1] > 0) & (pts_cam[0] < self.W)
         pts_cam = pts_cam[:, pts_cam_plane].T
@@ -120,11 +108,12 @@ class MapGenerator():
 
         # create an image color: (138, 83, 47) with the obstacles
         img = np.zeros((int(self.H), int(self.W), 3), np.uint8)
-        img[:] = (47, 138, 83)
+        img[:] = (47, 86, 138)
+        #d = T_cw[2, 3]
         for pt, r, d in zip(pts_cam, radius_visible, distances):
             # rospy.loginfo(f"pt:\n{pt}")
             # point size according to the radius
-            cv2.circle(img, (int(pt[0]), int(pt[1])), int(self.K[0,0]*r/d), (111, 173, 136), -1)
+            cv2.circle(img, (int(pt[0]), int(pt[1])), int(self.K[0,0]*r/d), (127, 182, 227), -1)
         
         # add noise to the image
         noise = np.random.normal(0, 10, img.shape)
@@ -133,6 +122,9 @@ class MapGenerator():
 
         # blur the image
         img = cv2.GaussianBlur(img, (5, 5), 0)
+
+        # cv2.imshow('Map', img)
+        # cv2.waitKey(1)
 
         return img
 

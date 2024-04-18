@@ -173,7 +173,7 @@ class Heli():
         if new_map:
             self.publish_map()
 
-    def project_obstacles(self, obs_cam_plane, K, T):
+    def reproject_obstacles(self, obs_cam_plane, K, T_wc):
         """ Obstacles are in the camera plane, we need to project them to the world frame
         Args:
             obs_cam_plane: list of obstacles in the camera plane, each obstacle is a tuple Nx2 (u, v)
@@ -182,13 +182,13 @@ class Heli():
         """
         obs_cam_homogenous = np.hstack([obs_cam_plane, np.ones((len(obs_cam_plane), 1))]).T
 
-        T_inv = np.linalg.inv(T)
+        # T_wc = np.linalg.inv(T_cw)
         P_cam = np.linalg.inv(K) @ obs_cam_homogenous
         # We assume all the points lay on a plane, the plane is at the distance of the camera height
         P_cam = P_cam * self.pose.pose.position.z  # z is like the avg depth
         P_cam = np.vstack([P_cam, np.ones((1, P_cam.shape[1]))])
         # rospy.loginfo(f"P_cam:\n{P_cam}")
-        obs_world_homogenous = T_inv @ P_cam
+        obs_world_homogenous = T_wc @ P_cam
         # print("tinv",T_inv)
         # print("homogenous",obs_world_homogenous)
         # rospy.loginfo(f"obs_world_homogenous:\n{obs_world_homogenous}")
@@ -232,13 +232,12 @@ class Heli():
         for contour in contours:
             # Fit a circle to the contour
             (x, y), radius = cv2.minEnclosingCircle(contour)
-            center = (int(x), int(y))
-            radius = int(radius)
+            center = (x, y)
             obstacles.append((center, radius))
             # print("rad1:",radius)
 
             # Draw the circle
-            cv2.circle(result, center, radius, (0, 0, 255), 2)
+            cv2.circle(result, (int(x), int(y)), int(radius), (0, 0, 255), 2)
             # print("center:",center)
 
         # Display the result
@@ -252,7 +251,8 @@ class Heli():
             return [], []
 
         # print("cam frame:",obs_cam_plane)
-        obs_world = self.project_obstacles(obs_cam_plane, self.K, msg2T(self.pose))
+        T_wc = msg2T(self.pose)
+        obs_world = self.reproject_obstacles(obs_cam_plane, self.K, T_wc)
 
         # scale the ray according to the pose of the camera
         radius = np.array([self.K[0, 0] * obs[1] / self.pose.pose.position.z / 100 for obs in obstacles])  #issue conversion error?

@@ -82,9 +82,11 @@ class Rover:
         # odometry publisher
         self.odom_publisher = rospy.Publisher('/curiosity_mars_rover/odom_1', Odometry, queue_size=10)
 
+        self.start_planner=False
 
     def dynamic_callback(self, config, level):
-        rospy.loginfo("""Reconfigure Request: {planner_algo}""".format(**config))
+        config
+        rospy.loginfo("""Reconfigure Request:{start_planning} {planner_algo}""".format(**config))
         print(planner_algo)
         if planner_algo == 'RRT':
             rospy.loginfo('Using RRT')
@@ -96,6 +98,11 @@ class Rover:
             rospy.loginfo('Using AStar')
             self.planner = AStar()
         
+        if config['start_planning']:
+            self.start_planner = not self.start_planner
+        
+        config['start_planning']=False
+
         self.planner = RRTStar()
         return config
 
@@ -146,7 +153,6 @@ class Rover:
             R = Rotation.from_euler('z', yaw).as_matrix().T 
             R_2d = R[:2, :2]
 
-            print(f"R: {R_2d}")
             # rotate the obstacles
             rotated_obs = np.dot(R_2d, obstacles[:, :2].T).T
 
@@ -175,7 +181,7 @@ class Rover:
             y_max = max(y_max, self.pose[1])
 
             path = self.planner.plan(rotated_pose, rotated_goal, rotated_obs,
-                                     self.map.obstacles_radius_list, show_animation=False,
+                                     self.map.obstacles_radius_list, show_animation=True,
                                      map_bounds=[int(x_min - 5), 
                                                 int(y_min - 5), 
                                                 int(x_max + 5),
