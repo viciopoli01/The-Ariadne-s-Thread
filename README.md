@@ -1,4 +1,4 @@
-# The Ariadne's Thread Team Repo (Class )
+# The Ariadne's Thread Team Repo
 
 <!-- Add gif -->
 <p align="center">
